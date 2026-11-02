@@ -15,6 +15,7 @@ const H = canvas.height;
 const LEVEL_WIDTH = 2200;
 const GROUND_Y = 500;
 const GOAL_X = 2070;
+const CHECKPOINT_X = 1210;
 const TARGET_COINS = 12;
 const keys = new Set();
 const touchDirs = new Set();
@@ -30,6 +31,7 @@ let jumpQueued = false;
 let messageTimer = 0;
 let message = '';
 let particles = [];
+let cameraShake = 0;
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -68,10 +70,11 @@ function buildLevel() {
 
 function resetGame() {
   buildLevel();
-  player = { x: 62, y: GROUND_Y - 48, w: 30, h: 46, vx: 0, vy: 0, grounded: true, facing: 1, lives: 3, coins: 0, invulnerable: 0, walk: 0 };
+  player = { x: 62, y: GROUND_Y - 48, w: 30, h: 46, vx: 0, vy: 0, grounded: true, coyote: 0.12, jumpBuffer: 0, facing: 1, lives: 3, coins: 0, invulnerable: 0, walk: 0, checkpoint: 62, checkpointActive: false };
   cameraX = 0;
   elapsed = 0;
   particles = [];
+  cameraShake = 0;
   updateHUD();
 }
 
@@ -112,17 +115,27 @@ function burst(x, y, color, amount = 9) {
   }
 }
 
-function loseLife() {
-  if (player.invulnerable > 0) return;
-  player.lives -= 1;
+function loseLife(fell = false) {
+  if (player.invulnerable > 0 && !fell) return;
+  if (player.invulnerable <= 0) player.lives -= 1;
   player.invulnerable = 1.5;
-  player.vy = -320;
-  player.vx = -player.facing * 150;
+  cameraShake = 9;
   burst(player.x + player.w / 2, player.y + player.h / 2, '#ff8170');
   updateHUD();
   if (player.lives <= 0) {
     gameState = 'over';
     showOverlay('Ouch!', `You collected ${player.coins} coins. Give it another try!`, 'Try Again');
+    return;
+  }
+  if (fell) {
+    player.x = player.checkpoint;
+    player.y = GROUND_Y - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.grounded = true;
+  } else {
+    player.vy = -320;
+    player.vx = -player.facing * 150;
   }
 }
 
@@ -139,15 +152,22 @@ function movePlayer(dt) {
     player.vx *= Math.pow(0.0008, dt);
   }
   player.vx = clamp(player.vx, -285, 285);
-  if (jumpQueued && player.grounded) {
+  if (jumpQueued) player.jumpBuffer = 0.13;
+  else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
+  if (player.grounded) player.coyote = 0.12;
+  else player.coyote = Math.max(0, player.coyote - dt);
+  if (player.jumpBuffer > 0 && player.coyote > 0) {
     player.vy = -570;
     player.grounded = false;
+    player.coyote = 0;
+    player.jumpBuffer = 0;
   }
   if (!jumpHeld && player.vy < -180) player.vy += 1200 * dt;
   jumpQueued = false;
   player.vy = Math.min(player.vy + 1550 * dt, 760);
 
   const oldY = player.y;
+  const wasGrounded = player.grounded;
   player.x += player.vx * dt;
   player.x = clamp(player.x, 0, LEVEL_WIDTH - player.w);
   player.y += player.vy * dt;
@@ -163,14 +183,21 @@ function movePlayer(dt) {
       }
     }
   }
-  if (player.y > H + 100) loseLife();
-  if (player.invulnerable > 0) player.invulnerable -= dt;
+  if (!wasGrounded && player.grounded) burst(player.x + player.w / 2, player.y + player.h, '#fff4d2', 4);
+  if (player.y > H + 100) loseLife(true);
+  if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
 }
 
 function update(dt) {
   elapsed += dt;
   movePlayer(dt);
   cameraX = clamp(player.x - W * 0.36, 0, LEVEL_WIDTH - W);
+  if (!player.checkpointActive && player.x + player.w >= CHECKPOINT_X) {
+    player.checkpoint = CHECKPOINT_X + 18;
+    player.checkpointActive = true;
+    setMessage('Checkpoint reached!');
+    burst(CHECKPOINT_X, GROUND_Y - 36, '#8fffc1', 12);
+  }
 
   for (const coin of coins) {
     if (!coin.taken) {
@@ -194,6 +221,7 @@ function update(dt) {
       if (stomp) {
         enemy.alive = false;
         player.vy = -360;
+        cameraShake = Math.max(cameraShake, 3);
         burst(enemy.x + enemy.w / 2, enemy.y, '#c58a53', 10);
       } else {
         loseLife();
@@ -318,6 +346,12 @@ function drawWorld() {
     ctx.fillStyle = '#159447'; ctx.fillRect(x, y, pipe.w, 16);
     ctx.fillStyle = '#57e879'; ctx.fillRect(x + 5, y + 3, pipe.w - 10, 7);
   }
+  // Mid-level checkpoint: its color changes once activated.
+  const cx = CHECKPOINT_X - cameraX;
+  ctx.fillStyle = '#f4f0dc'; ctx.fillRect(cx, 382, 6, GROUND_Y - 382);
+  ctx.fillStyle = player && player.checkpointActive ? '#35d99a' : '#f1a94e';
+  ctx.beginPath(); ctx.moveTo(cx + 6, 388); ctx.lineTo(cx + 49, 402); ctx.lineTo(cx + 6, 416); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx + 3, 380, 7, 0, Math.PI * 2); ctx.fill();
   // Flag and pole.
   const fx = GOAL_X - cameraX;
   ctx.fillStyle = '#f4f0dc'; ctx.fillRect(fx, 218, 8, GROUND_Y - 218);
@@ -385,6 +419,8 @@ function drawDecor() {
 }
 
 function draw() {
+  ctx.save();
+  if (cameraShake > 0.15) ctx.translate((Math.random() - 0.5) * cameraShake, (Math.random() - 0.5) * cameraShake);
   drawBackground();
   drawWorld();
   drawDecor();
@@ -404,6 +440,7 @@ function draw() {
   // Coin progress is always visible in the playfield too.
   roundedRect(18, 16, 132, 38, 12, 'rgba(21,51,74,.72)');
   ctx.fillStyle = '#ffe16a'; ctx.font = 'bold 17px system-ui'; ctx.fillText(`● ${player ? player.coins : 0} / ${TARGET_COINS}`, 31, 41);
+  ctx.restore();
 }
 
 function frame(now) {
@@ -411,6 +448,7 @@ function frame(now) {
   lastTime = now;
   if (gameState === 'playing') update(dt);
   else elapsed += dt * 0.35;
+  cameraShake *= Math.pow(0.01, dt);
   draw();
   requestAnimationFrame(frame);
 }
