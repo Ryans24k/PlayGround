@@ -66,7 +66,8 @@ const state = {
   hero: { x: 72, y: FLOOR_Y - 42, w: 30, h: 42, growth: 1, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 },
   coinsOnMap: [],
   enemies: [],
-  graves: []
+  graves: [],
+  smokeClouds: []
 };
 
 function resetLevel() {
@@ -76,6 +77,7 @@ function resetLevel() {
   state.coinsOnMap = coinSpots.map(([x, y]) => ({ x, y, taken: false, bob: Math.random() * Math.PI * 2 }));
   state.enemies = enemySeeds.map((e, i) => ({ ...e, y: FLOOR_Y - 29, w: 34, h: 29, dir: i % 2 ? -1 : 1, alive: true, phase: Math.random() * 3 }));
   state.graves = graveSeeds.map((grave) => ({ ...grave, triggered: false, zombieTime: 0, powerup: null }));
+  state.smokeClouds = [];
   state.particles = [];
   state.camera = 0;
   state.time = 0;
@@ -170,6 +172,33 @@ function hurt() {
   state.camera = Math.max(0, h.x - 280);
 }
 
+function releaseSmokeClouds() {
+  const h = state.hero;
+  const x = h.x + h.w / 2 + h.facing * 16;
+  const y = h.y + h.h / 2;
+  for (const spread of [-115, 0, 115]) {
+    state.smokeClouds.push({ x, y, vx: h.facing * 340, vy: spread, life: 1.1, radius: 34 });
+  }
+}
+
+function updateSmokeClouds(dt) {
+  for (const cloud of state.smokeClouds) {
+    cloud.x += cloud.vx * dt;
+    cloud.y += cloud.vy * dt;
+    cloud.life -= dt;
+    for (const enemy of state.enemies) {
+      if (!enemy.alive) continue;
+      const dx = enemy.x + enemy.w / 2 - cloud.x;
+      const dy = enemy.y + enemy.h / 2 - cloud.y;
+      if (dx * dx + dy * dy > (cloud.radius + 16) ** 2) continue;
+      enemy.alive = false;
+      state.coinsOnMap.push({ x: enemy.x + enemy.w / 2, y: enemy.y + enemy.h / 2, taken: false, bob: Math.random() * Math.PI * 2 });
+      burst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, '#c6c8d8', 8);
+    }
+  }
+  state.smokeClouds = state.smokeClouds.filter((cloud) => cloud.life > 0);
+}
+
 function update(dt) {
   if (!state.running) return;
   state.time += dt;
@@ -240,6 +269,8 @@ function update(dt) {
           h.w = 34;
           h.h = 48;
           h.growth = 1.14;
+        } else {
+          releaseSmokeClouds();
         }
         state.score += 300;
         burst(powerup.x, py, '#c7ff9a', 18);
@@ -279,6 +310,8 @@ function update(dt) {
       }
     }
   }
+
+  updateSmokeClouds(dt);
 
   for (const p of state.particles) {
     p.x += p.vx * dt;
@@ -542,6 +575,25 @@ function drawHero() {
   ctx.restore();
 }
 
+function drawSmokeClouds() {
+  for (const cloud of state.smokeClouds) {
+    const x = cloud.x - state.camera;
+    if (x < -80 || x > W + 80) continue;
+    const age = 1.1 - cloud.life;
+    const puff = cloud.radius * (.72 + Math.min(.38, age));
+    ctx.save();
+    ctx.globalAlpha = Math.min(.72, cloud.life * 1.4);
+    ctx.fillStyle = '#b7b9ca';
+    ctx.beginPath();
+    ctx.arc(x, cloud.y, puff * .58, 0, Math.PI * 2);
+    ctx.arc(x - puff * .48, cloud.y + 3, puff * .4, 0, Math.PI * 2);
+    ctx.arc(x + puff * .47, cloud.y - 2, puff * .43, 0, Math.PI * 2);
+    ctx.arc(x, cloud.y - puff * .38, puff * .42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawGoal() {
   const x = 4180 - state.camera;
   ctx.fillStyle = '#25243a';
@@ -568,6 +620,7 @@ function render() {
   drawGraveRewards();
   drawGoal();
   for (const enemy of state.enemies) drawEnemy(enemy);
+  drawSmokeClouds();
   for (const p of state.particles) {
     ctx.globalAlpha = Math.min(1, p.life * 2);
     ctx.fillStyle = p.color; ctx.fillRect(p.x - state.camera, p.y, p.size, p.size);
