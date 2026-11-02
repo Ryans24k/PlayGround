@@ -17,13 +17,13 @@
 - 🌍 [Create with OMGithub](https://omgithub.com).
 <!-- omgithub:readme:end -->
 
-## Starfall Defense
+## Moonlit Mayhem
 
-A complete browser arcade game: pilot your ship, dodge falling invaders, and fire back through six increasingly difficult waves.
+A spooky side-scrolling platform adventure starring a tiny vampire. Leap through a haunted valley, collect moon coins, bounce on restless spirits, and reach the final gate. Your best score is saved in your browser.
 
-- **Move:** Left/Right arrows or A/D
-- **Fire:** Space, mouse/touch on the playfield, or the on-screen FIRE button
-- **Touch:** Use the on-screen left/right controls
-- **Goal:** Clear all six waves; avoid enemies and don't let them pass the bottom of the screen
+- **Move:** Left/Right arrows or **A/D**
+- **Jump:** **Space**, **Up arrow**, or **W**; press again in midair to double-jump
+- **Touch:** Use the on-screen left, right, and jump controls
+- **Goal:** Reach the final gate while collecting moon coins and avoiding spirits and gaps
 
-Open `index.html` in a browser to play. Best score is saved locally in your browser.
+Open `index.html` in a modern browser to play. No build step or dependencies are required.

@@ -1,207 +1,94 @@
 :root {
-  --bg-1: #050b1a;
-  --bg-2: #0d1730;
-  --hud: rgba(10, 16, 30, 0.7);
-  --panel: rgba(9, 20, 39, 0.88);
-  --panel-border: rgba(152, 235, 255, 0.5);
-  --text: #eefbff;
-  --muted: #9ec5dd;
-  --cyan: #6be8ff;
-  --blue: #7e9bff;
-  --purple: #b794ff;
-  --red: #ff5d7d;
-  --gold: #ffd56a;
-  --green: #78ffc1;
+  color-scheme: dark;
+  --ink: #17233c;
+  --muted: #9fb6d3;
+  --gold: #ffd35a;
+  --bg1: #0d1021;
+  --bg2: #1d1634;
+  --panel: rgba(22, 20, 42, 0.8);
+  --panel-border: rgba(192, 167, 255, 0.28);
+  --moon: #dfe7ff;
+  --violet: #ad8eff;
+  --blood: #ff6b7d;
+  --grave: #4d4f70;
+  --spirit: #85d7ff;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  min-height: 100%;
-  height: 100%;
-  font-family: Inter, "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top, #111f40 0%, var(--bg-2) 25%, var(--bg-1) 80%);
-  color: var(--text);
-}
-
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; height: 100%; }
 body {
   display: grid;
   place-items: center;
   overflow: hidden;
+  padding: 10px;
+  color: #fff;
+  font-family: Inter, "Trebuchet MS", system-ui, sans-serif;
+  background: radial-gradient(ellipse at 50% 0%, #221a3d, #0a0d1a 65%, #04070e);
   user-select: none;
 }
-
 .app-shell {
-  width: min(96vw, 1100px);
-  height: min(96vh, 760px);
+  width: min(96vw, 1120px);
+  height: min(96vh, 790px);
+  min-height: 400px;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
   padding: 12px;
+  border: 1px solid var(--panel-border);
   border-radius: 22px;
-  background: rgba(6, 13, 25, 0.62);
-  border: 1px solid rgba(146, 206, 255, 0.24);
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+  background: rgba(8, 10, 24, .86);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .52);
 }
-
 .hud {
   display: grid;
-  grid-template-columns: repeat(4, minmax(90px, 1fr));
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--hud);
-  border: 1px solid rgba(114, 151, 255, 0.4);
-  border-radius: 16px;
-  backdrop-filter: blur(6px);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 54px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(173, 219, 255, 0.2);
-}
-
-.label {
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.stat span:last-child {
-  font-size: clamp(1.1rem, 2vw, 1.8rem);
-  font-weight: 800;
-}
-
-.game-wrap {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: linear-gradient(180deg, rgba(28, 40, 70, 0.88), rgba(6, 13, 25, 0.9));
-  border: 1px solid rgba(130, 194, 255, 0.35);
-}
-
-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  background: radial-gradient(circle at 50% 20%, rgba(111, 149, 255, 0.18), rgba(4, 9, 20, 0.9) 48%, rgba(0, 0, 0, 0.95));
-  touch-action: none;
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(2, 6, 15, 0.56);
-  backdrop-filter: blur(2px);
-}
-
-.overlay.visible {
-  display: flex;
-}
-
-.panel {
-  width: min(90%, 440px);
-  text-align: center;
-  padding: 28px 22px 20px;
-  border-radius: 20px;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(4, minmax(75px, .7fr));
+  gap: 8px;
+  align-items: stretch;
+  padding: 8px;
+  border-radius: 15px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.32);
 }
-
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--cyan);
-}
-
-h1 {
-  margin: 0 0 12px;
-  font-size: clamp(2rem, 3vw, 3rem);
-}
-
-#message {
-  margin: 0 0 18px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-button {
-  font: inherit;
-}
-
-#startButton {
-  appearance: none;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.9rem 1.4rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, var(--cyan), var(--blue));
-  color: #031520;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 12px 28px rgba(92, 142, 255, 0.35);
-}
-
-#startButton:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-.touch-controls {
+.brand, .stat {
+  min-height: 48px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
 }
-
-.control {
-  flex: 1;
-  max-width: 150px;
-  min-height: 54px;
-  border: 1px solid rgba(166, 217, 255, 0.45);
-  border-radius: 14px;
-  background: rgba(18, 31, 52, 0.82);
-  color: var(--text);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  touch-action: manipulation;
-  cursor: pointer;
-}
-
-.control:active, .control.active {
-  background: rgba(110, 184, 255, 0.18);
-}
-
+.brand { gap: 8px; color: #f1d5ff; font-weight: 900; letter-spacing: .09em; font-size: clamp(.7rem, 1.3vw, .95rem); }
+.stat { flex-direction: column; }
+.label { color: #c7cae6; text-transform: uppercase; letter-spacing: .12em; font-size: .64rem; }
+.stat span:last-child { color: white; font-size: 1.15rem; font-weight: 900; line-height: 1.15; }
+.game-wrap { position: relative; min-height: 0; overflow: hidden; border-radius: 17px; border: 1px solid rgba(142, 145, 205, .45); background: #101830; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.overlay { position: absolute; inset: 0; display: none; place-items: center; padding: 18px; background: rgba(7, 9, 22, .48); backdrop-filter: blur(3px); }
+.overlay.visible { display: grid; }
+.panel { width: min(92%, 460px); padding: 26px 26px 22px; text-align: center; border: 2px solid rgba(214, 146, 255, .75); border-radius: 22px; background: linear-gradient(160deg, rgba(28, 25, 52, .97), rgba(13, 15, 28, .97)); box-shadow: 0 22px 60px rgba(7, 8, 20, .5); }
+.eyebrow { margin: 0 0 7px; color: #f0c8ff; text-transform: uppercase; letter-spacing: .17em; font-weight: 800; font-size: .72rem; }
+h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3rem); color: #f3ebff; text-shadow: 0 3px 0 #6a4a9f; }
+#message { margin: 0 auto 18px; max-width: 360px; color: #d9d8ef; line-height: 1.55; }
+button { font: inherit; }
+#startButton { border: 0; border-radius: 999px; padding: .9rem 1.5rem; background: linear-gradient(#d3b8ff, #8d74ff); color: #160d28; font-weight: 1000; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; box-shadow: 0 5px 0 #51458f, 0 12px 25px rgba(0,0,0,.25); }
+#startButton:active { transform: translateY(3px); box-shadow: 0 2px 0 #51458f; }
+.touch-controls { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.control { min-width: 68px; min-height: 50px; border: 1px solid rgba(183, 213, 255, .45); border-radius: 13px; background: rgba(40, 34, 63, .94); color: white; font-weight: 900; font-size: 1.15rem; touch-action: none; cursor: pointer; }
+.control.jump { min-width: 112px; color: #f0d7ff; }
+.control-spacer { width: clamp(25px, 12vw, 160px); }
+.control.active, .control:active { background: #4f4974; transform: translateY(1px); }
+.help { margin: -4px 0 0; color: #a9b2d8; text-align: center; font-size: .72rem; }
+kbd { display: inline-block; padding: 2px 5px; border: 1px solid rgba(170, 197, 230, .35); border-radius: 4px; background: rgba(255,255,255,.07); color: #dce9f6; }
 @media (max-width: 640px) {
-  .app-shell {
-    width: 100vw;
-    height: 100vh;
-    border-radius: 0;
-    padding: 10px;
-  }
-
-  .hud {
-    grid-template-columns: repeat(2, minmax(80px, 1fr));
-  }
-
-  .touch-controls {
-    gap: 8px;
-  }
+  body { padding: 0; }
+  .app-shell { width: 100vw; height: 100dvh; min-height: 0; border-radius: 0; padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); gap: 7px; }
+  .hud { grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 5px; }
+  .brand { grid-column: 1 / -1; min-height: 30px; }
+  .stat { min-height: 42px; }
+  .game-wrap { border-radius: 12px; }
+  .touch-controls { justify-content: space-around; gap: 7px; }
+  .control { min-width: 58px; min-height: 48px; }
+  .control.jump { min-width: 96px; }
+  .control-spacer { flex: 1; width: auto; }
+  .help { font-size: .62rem; }
 }
