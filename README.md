@@ -25,7 +25,7 @@ A spooky side-scrolling platform adventure starring a tiny vampire. Leap through
 - **Jump:** **Space**, **Up arrow**, or **W**; press again in midair to double-jump
 - **Touch:** Use the on-screen left, right, and jump controls
 - **Gravestones:** Bump one from underneath to release a zombie and a growth potion
-- **Extra potion:** If already grown, another potion shoots smoke clouds that turn spirits into collectible moon coins
+- **Extra potion:** If already grown, another potion stores one smoke charge. Double-tap **Left** or **Right** (or a touch direction button) to fire it that way; smoke turns spirits into collectible moon coins
 - **Goal:** Reach the final gate while collecting moon coins and avoiding spirits and gaps
 
 Open `index.html` in a modern browser to play. No build step or dependencies are required.
