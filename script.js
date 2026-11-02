@@ -136,21 +136,30 @@ function triggerGrave(grave) {
 function hurt() {
   const h = state.hero;
   if (h.invuln > 0) return;
-  // Damage respawns the vampire, but the growth potion is a run-long upgrade.
-  const growth = h.growth;
-  const width = h.w;
-  const height = h.h;
-  state.lives -= 1;
   burst(h.x + h.w / 2, h.y + h.h / 2, '#fff0bd', 18);
+  if (h.growth > 1) {
+    // The growth potion absorbs one hit: shrink in place instead of losing a life and respawning.
+    const feet = h.y + h.h;
+    const center = h.x + h.w / 2;
+    h.growth = 1;
+    h.w = 30;
+    h.h = 42;
+    h.x = center - h.w / 2;
+    h.y = feet - h.h;
+    h.vx = 0;
+    h.vy = -260;
+    h.grounded = false;
+    h.jumpsUsed = 1;
+    h.invuln = 1.7;
+    return;
+  }
+  state.lives -= 1;
   if (state.lives <= 0) {
     state.lives = 0;
     updateHud();
     endGame(false);
     return;
   }
-  h.growth = growth;
-  h.w = width;
-  h.h = height;
   h.x = h.checkpoint;
   h.y = FLOOR_Y - h.h - 2;
   h.vx = 0;
