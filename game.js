@@ -17,6 +17,12 @@ const GROUND_Y = 500;
 const GOAL_X = 2070;
 const CHECKPOINT_X = 1210;
 const TARGET_COINS = 12;
+const PIPES = [
+  { x: 315, w: 58, h: 74 },
+  { x: 920, w: 64, h: 104 },
+  { x: 1430, w: 62, h: 82 },
+  { x: 1870, w: 68, h: 112 },
+].map(pipe => ({ ...pipe, y: GROUND_Y - pipe.h }));
 const keys = new Set();
 const touchDirs = new Set();
 let player;
@@ -165,20 +171,40 @@ function movePlayer(dt) {
   jumpQueued = false;
   player.vy = Math.min(player.vy + 1550 * dt, 760);
 
+  const oldX = player.x;
   const oldY = player.y;
   const wasGrounded = player.grounded;
   player.x += player.vx * dt;
   player.x = clamp(player.x, 0, LEVEL_WIDTH - player.w);
+
+  for (const pipe of PIPES) {
+    const overlapsVertically = player.y < pipe.y + pipe.h && player.y + player.h > pipe.y;
+    if (overlapsVertically && player.x + player.w > pipe.x && player.x < pipe.x + pipe.w) {
+      if (player.vx > 0) player.x = pipe.x - player.w;
+      else if (player.vx < 0) player.x = pipe.x + pipe.w;
+      player.vx = 0;
+    }
+  }
+
   player.y += player.vy * dt;
   player.grounded = false;
 
   if (player.vy >= 0) {
-    for (const p of platforms) {
+    for (const p of [...platforms, ...PIPES]) {
       const crossedTop = oldY + player.h <= p.y + 2 && player.y + player.h >= p.y;
       if (crossedTop && player.x + player.w > p.x && player.x < p.x + p.w) {
         player.y = p.y - player.h;
         player.vy = 0;
         player.grounded = true;
+      }
+    }
+  } else {
+    for (const pipe of PIPES) {
+      const pipeBottom = pipe.y + pipe.h;
+      const hitUnderside = oldY >= pipeBottom - 2 && player.y <= pipeBottom;
+      if (hitUnderside && player.x + player.w > pipe.x && player.x < pipe.x + pipe.w) {
+        player.y = pipeBottom;
+        player.vy = 0;
       }
     }
   }
@@ -374,9 +400,9 @@ function drawWorld() {
       for (let bx = x + 12; bx < x + p.w; bx += 50) ctx.fillRect(bx, p.y + 9, 3, 3);
     }
   }
-  for (const pipe of [{ x: 315, w: 58, h: 74 }, { x: 920, w: 64, h: 104 }, { x: 1430, w: 62, h: 82 }, { x: 1870, w: 68, h: 112 }]) {
+  for (const pipe of PIPES) {
     const x = pipe.x - cameraX;
-    const y = GROUND_Y - pipe.h;
+    const y = pipe.y;
     const body = ctx.createLinearGradient(x + 7, 0, x + pipe.w - 7, 0);
     body.addColorStop(0, '#087c3d');
     body.addColorStop(0.24, '#20b752');
