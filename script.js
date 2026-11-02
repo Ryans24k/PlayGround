@@ -7,13 +7,14 @@ const startButton = document.getElementById('startButton');
 const scoreEl = document.getElementById('score');
 const coinsEl = document.getElementById('coins');
 const livesEl = document.getElementById('lives');
+const smokeEl = document.getElementById('smoke');
 const bestEl = document.getElementById('best');
 
 const W = canvas.width;
 const H = canvas.height;
 const WORLD_WIDTH = 4300;
 const FLOOR_Y = 510;
-const input = { left: false, right: false, jump: false, jumpQueued: false };
+const input = { left: false, right: false, jump: false, jumpQueued: false, lastDirectionTap: { left: 0, right: 0 } };
 const bestKey = 'moonlit-mayhem-best';
 
 const platforms = [
@@ -67,12 +68,16 @@ const state = {
   coinsOnMap: [],
   enemies: [],
   graves: [],
-  smokeClouds: []
+  smokeClouds: [],
+  smokeCharges: 0
 };
 
 function resetLevel() {
   input.jump = false;
   input.jumpQueued = false;
+  input.lastDirectionTap.left = 0;
+  input.lastDirectionTap.right = 0;
+  state.smokeCharges = 0;
   state.hero = { x: 72, y: FLOOR_Y - 42, w: 30, h: 42, growth: 1, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 };
   state.coinsOnMap = coinSpots.map(([x, y]) => ({ x, y, taken: false, bob: Math.random() * Math.PI * 2 }));
   state.enemies = enemySeeds.map((e, i) => ({ ...e, y: FLOOR_Y - 29, w: 34, h: 29, dir: i % 2 ? -1 : 1, alive: true, phase: Math.random() * 3 }));
@@ -87,6 +92,7 @@ function updateHud() {
   scoreEl.textContent = String(state.score);
   coinsEl.textContent = String(state.coins);
   livesEl.textContent = String(state.lives);
+  smokeEl.textContent = String(state.smokeCharges);
   bestEl.textContent = String(state.best);
 }
 
@@ -172,13 +178,15 @@ function hurt() {
   state.camera = Math.max(0, h.x - 280);
 }
 
-function releaseSmokeClouds() {
+function releaseSmokeClouds(direction) {
   const h = state.hero;
-  const x = h.x + h.w / 2 + h.facing * 16;
+  const x = h.x + h.w / 2 + direction * 16;
   const y = h.y + h.h / 2;
   for (const spread of [-115, 0, 115]) {
-    state.smokeClouds.push({ x, y, vx: h.facing * 340, vy: spread, life: 1.1, radius: 34 });
+    state.smokeClouds.push({ x, y, vx: direction * 340, vy: spread, life: 1.1, radius: 34 });
   }
+  state.smokeCharges -= 1;
+  updateHud();
 }
 
 function updateSmokeClouds(dt) {
@@ -270,7 +278,7 @@ function update(dt) {
           h.h = 48;
           h.growth = 1.14;
         } else {
-          releaseSmokeClouds();
+          state.smokeCharges += 1;
         }
         state.score += 300;
         burst(powerup.x, py, '#c7ff9a', 18);
@@ -642,6 +650,16 @@ function frame(now) {
 }
 
 function setControl(control, pressed) {
+  if ((control === 'left' || control === 'right') && pressed && !input[control] && state.running) {
+    const now = performance.now();
+    const previousTap = input.lastDirectionTap[control];
+    if (previousTap && now - previousTap <= 360) {
+      input.lastDirectionTap[control] = 0;
+      if (state.smokeCharges > 0) releaseSmokeClouds(control === 'left' ? -1 : 1);
+    } else {
+      input.lastDirectionTap[control] = now;
+    }
+  }
   if (control === 'jump' && pressed && !input.jump) input.jumpQueued = true;
   input[control] = pressed;
 }
