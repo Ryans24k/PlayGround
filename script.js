@@ -366,6 +366,31 @@ function drawHero() {
   const x = h.x - state.camera;
   const running = Math.abs(h.vx) > 20 && h.grounded;
   const leg = running ? Math.sin(state.time * 18) * 4 : 0;
+  const batWing = Math.sin(state.time * 14) * 5;
+  const batX = x - 18 + (h.facing < 0 ? 12 : -4) + Math.sin(state.time * 6) * 6;
+  const batY = h.y - 18 + Math.sin(state.time * 8) * 4;
+
+  ctx.save();
+  ctx.translate(batX, batY);
+  ctx.fillStyle = '#141822';
+  ctx.beginPath();
+  ctx.moveTo(-9, 0);
+  ctx.quadraticCurveTo(-18, -8, -22, -4);
+  ctx.quadraticCurveTo(-10, 2, -9, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(9, 0);
+  ctx.quadraticCurveTo(18, -8, 22, -4);
+  ctx.quadraticCurveTo(10, 2, 9, 0);
+  ctx.fill();
+  ctx.fillStyle = '#2d2d3a';
+  ctx.fillRect(-4, -2, 8, 6);
+  ctx.fillStyle = '#dfe5ff';
+  ctx.fillRect(-2, -1, 2, 2); ctx.fillRect(2, -1, 2, 2);
+  ctx.fillStyle = '#d8b7ff';
+  ctx.fillRect(-1, 6, 2, 2);
+  ctx.restore();
+
   ctx.save();
   ctx.translate(x + h.w / 2, h.y);
   if (h.facing < 0) ctx.scale(-1, 1);
