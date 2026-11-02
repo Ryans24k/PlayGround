@@ -35,7 +35,6 @@ let cameraShake = 0;
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-
 function buildLevel() {
   platforms = [
     { x: 0, y: GROUND_Y, w: 530, h: 100 },
@@ -111,7 +110,7 @@ function burst(x, y, color, amount = 9) {
   for (let i = 0; i < amount; i += 1) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 45 + Math.random() * 130;
-    particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 35, life: 0.55, color });
+    particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 35, life: 0.55, color, size: 4 + Math.random() * 5 });
   }
 }
 
@@ -263,7 +262,11 @@ function drawBackground() {
   sky.addColorStop(1, '#f4fbdb');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  // Far hills drift more slowly than the level for a gentle parallax effect.
+
+  const shimmer = (Math.sin(elapsed * 0.8) + 1) * 0.5;
+  ctx.fillStyle = `rgba(255,255,255,${0.2 + shimmer * 0.2})`;
+  ctx.fillRect(0, 0, W, H * 0.42);
+
   for (let i = 0; i < 7; i += 1) {
     const x = i * 190 - (cameraX * 0.2 % 190) - 70;
     ctx.fillStyle = i % 2 ? '#a4e5a0' : '#8bdc9a';
@@ -276,7 +279,6 @@ function drawBackground() {
     const y = 95 + (i % 3) * 52;
     drawCloud(x, y, 0.8 + (i % 2) * 0.18);
   }
-  // Distant little trees.
   for (let i = 0; i < 14; i += 1) {
     const x = i * 190 - (cameraX * 0.55 % 190) + 35;
     ctx.fillStyle = '#79583e';
@@ -305,7 +307,6 @@ function drawCloud(x, y, s) {
 }
 
 function drawWorld() {
-  // Pit walls and a soft blue depth make the gaps readable.
   for (const pit of [[530, 90], [1095, 85], [1600, 100]]) {
     const x = pit[0] - cameraX;
     ctx.fillStyle = '#71d5ef';
@@ -337,7 +338,6 @@ function drawWorld() {
       for (let bx = x + 12; bx < x + p.w; bx += 50) ctx.fillRect(bx, p.y + 8, 3, 3);
     }
   }
-  // Pipes: classic bright green, with a darker rim and highlights.
   for (const pipe of [{ x: 315, w: 58, h: 74 }, { x: 920, w: 64, h: 104 }, { x: 1430, w: 62, h: 82 }, { x: 1870, w: 68, h: 112 }]) {
     const x = pipe.x - cameraX;
     const y = GROUND_Y - pipe.h;
@@ -346,19 +346,41 @@ function drawWorld() {
     ctx.fillStyle = '#159447'; ctx.fillRect(x, y, pipe.w, 16);
     ctx.fillStyle = '#57e879'; ctx.fillRect(x + 5, y + 3, pipe.w - 10, 7);
   }
-  // Mid-level checkpoint: its color changes once activated.
+
   const cx = CHECKPOINT_X - cameraX;
-  ctx.fillStyle = '#f4f0dc'; ctx.fillRect(cx, 382, 6, GROUND_Y - 382);
+  const flagSwing = Math.sin(elapsed * 4) * 4;
+  ctx.fillStyle = '#f4f0dc';
+  ctx.fillRect(cx, 382, 6, GROUND_Y - 382);
   ctx.fillStyle = player && player.checkpointActive ? '#35d99a' : '#f1a94e';
-  ctx.beginPath(); ctx.moveTo(cx + 6, 388); ctx.lineTo(cx + 49, 402); ctx.lineTo(cx + 6, 416); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx + 3, 380, 7, 0, Math.PI * 2); ctx.fill();
-  // Flag and pole.
+  ctx.beginPath();
+  ctx.moveTo(cx + 6, 388 + flagSwing * 0.2);
+  ctx.lineTo(cx + 49, 402 + flagSwing);
+  ctx.lineTo(cx + 6, 416 + flagSwing * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(cx + 3, 380, 7, 0, Math.PI * 2);
+  ctx.fill();
+
   const fx = GOAL_X - cameraX;
-  ctx.fillStyle = '#f4f0dc'; ctx.fillRect(fx, 218, 8, GROUND_Y - 218);
+  const goalSwing = Math.sin(elapsed * 5) * 6;
+  ctx.fillStyle = '#f4f0dc';
+  ctx.fillRect(fx, 218, 8, GROUND_Y - 218);
   ctx.fillStyle = '#ff4f52';
-  ctx.beginPath(); ctx.moveTo(fx + 8, 224); ctx.lineTo(fx + 72, 245); ctx.lineTo(fx + 8, 266); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#ffe16a'; ctx.beginPath(); ctx.arc(fx + 4, 216, 11, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 15px system-ui'; ctx.fillText('GO!', fx + 19, 250);
+  ctx.beginPath();
+  ctx.moveTo(fx + 8, 224 + goalSwing * 0.2);
+  ctx.lineTo(fx + 72, 245 + goalSwing);
+  ctx.lineTo(fx + 8, 266 + goalSwing * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffe16a';
+  ctx.beginPath();
+  ctx.arc(fx + 4, 216, 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px system-ui';
+  ctx.fillText('GO!', fx + 19, 250);
 }
 
 function drawCoins() {
@@ -366,23 +388,58 @@ function drawCoins() {
     if (coin.taken) continue;
     const x = coin.x - cameraX;
     if (x < -30 || x > W + 30) continue;
-    const y = coin.y + Math.sin(elapsed * 5 + coin.phase) * 4;
-    ctx.fillStyle = '#d79d1d'; ctx.beginPath(); ctx.ellipse(x, y, 10, 15, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffdf55'; ctx.beginPath(); ctx.ellipse(x - 2, y - 2, 7, 12, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff4a6'; ctx.fillRect(x - 3, y - 8, 3, 7);
+    const bob = Math.sin(elapsed * 5 + coin.phase) * 4;
+    const y = coin.y + bob;
+    const sparkle = 1 + Math.sin(elapsed * 9 + coin.phase) * 0.12;
+    const rotation = Math.sin(elapsed * 6 + coin.phase) * 0.4;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.scale(sparkle, sparkle);
+
+    ctx.fillStyle = '#d79d1d';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffdf55';
+    ctx.beginPath();
+    ctx.ellipse(-2, -2, 7, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff4a6';
+    ctx.fillRect(-3, -8, 3, 7);
+    ctx.restore();
   }
 }
 
 function drawEnemy(enemy) {
   if (!enemy.alive) return;
   const x = enemy.x - cameraX;
+  const bounce = Math.sin(elapsed * 8 + enemy.x * 0.2) * 1.5;
+
   ctx.fillStyle = '#68401f';
-  ctx.beginPath(); ctx.ellipse(x + enemy.w / 2, enemy.y + 19, 18, 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + enemy.w / 2, enemy.y + 19 + bounce, 18, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = '#b77b3f';
-  ctx.beginPath(); ctx.arc(x + enemy.w / 2, enemy.y + 14, 15, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.fillRect(x + 9, enemy.y + 12, 6, 8); ctx.fillRect(x + 21, enemy.y + 12, 6, 8);
-  ctx.fillStyle = '#222'; ctx.fillRect(x + 12, enemy.y + 15, 3, 4); ctx.fillRect(x + 22, enemy.y + 15, 3, 4);
-  ctx.fillStyle = '#3c2b21'; ctx.fillRect(x + 3, enemy.y + 25, 12, 4); ctx.fillRect(x + 21, enemy.y + 25, 12, 4);
+  ctx.beginPath();
+  ctx.arc(x + enemy.w / 2, enemy.y + 14 + bounce, 15, Math.PI, 0);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x + 9, enemy.y + 12 + bounce, 6, 8);
+  ctx.fillRect(x + 21, enemy.y + 12 + bounce, 6, 8);
+
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x + 12, enemy.y + 15 + bounce, 3, 4);
+  ctx.fillRect(x + 22, enemy.y + 15 + bounce, 3, 4);
+
+  ctx.fillStyle = '#3c2b21';
+  ctx.fillRect(x + 3, enemy.y + 25 + bounce, 12, 4);
+  ctx.fillRect(x + 21, enemy.y + 25 + bounce, 12, 4);
 }
 
 function drawPlayer() {
@@ -391,19 +448,44 @@ function drawPlayer() {
   const x = Math.round(player.x - cameraX);
   const y = Math.round(player.y);
   const step = player.grounded ? Math.sin(player.walk) * 2 : 0;
-  // Shoes and blue overalls.
-  roundedRect(x + 2, y + 38 + step, 12, 8, 3, '#5b301f');
-  roundedRect(x + 17, y + 38 - step, 12, 8, 3, '#5b301f');
-  roundedRect(x + 5, y + 23, 21, 19, 4, '#2477df');
-  ctx.fillStyle = '#8fc6ff'; ctx.fillRect(x + 9, y + 26, 4, 4); ctx.fillRect(x + 19, y + 26, 4, 4);
-  // Red shirt, face, and cap create a familiar cheerful platform-hero silhouette.
-  roundedRect(x + 3, y + 17, 25, 14, 5, '#ed453c');
-  roundedRect(x + 7, y + 5, 19, 20, 6, '#ffd09a');
-  ctx.fillStyle = '#e94c3e'; ctx.fillRect(x + 4, y + 2, 23, 8); ctx.fillRect(x + 1, y + 8, 29, 5);
-  ctx.fillStyle = '#fff'; ctx.fillRect(x + (player.facing > 0 ? 19 : 9), y + 12, 5, 6);
-  ctx.fillStyle = '#30252a'; ctx.fillRect(x + (player.facing > 0 ? 22 : 10), y + 14, 2, 4);
-  ctx.fillStyle = '#a72c2e'; ctx.fillRect(x + 14, y + 20, 7, 2);
-  ctx.fillStyle = '#f7f0de'; ctx.fillRect(x + 10, y + 4, 11, 3);
+  const squash = player.grounded ? 1 + Math.abs(player.vx) * 0.0006 : 1.06;
+  const runTilt = player.grounded ? Math.sin(player.walk * 1.4) * 3 : 0;
+  const bob = player.grounded ? Math.sin(elapsed * 10) * 1.5 : 0;
+
+  ctx.save();
+  ctx.translate(x + player.w / 2, y + player.h / 2 + bob);
+  ctx.scale(player.facing, 1);
+  ctx.translate(-(x + player.w / 2), -(y + player.h / 2 + bob));
+
+  const footY = y + 38 + step;
+  roundedRect(x + 2, footY, 12, 8, 3, '#5b301f');
+  roundedRect(x + 17, footY - step * 0.6, 12, 8, 3, '#5b301f');
+
+  ctx.fillStyle = '#2477df';
+  ctx.beginPath();
+  ctx.roundRect(x + 5, y + 22, 21, 18 * squash, 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#8fc6ff';
+  ctx.fillRect(x + 9, y + 26, 4, 4);
+  ctx.fillRect(x + 19, y + 26, 4, 4);
+
+  roundedRect(x + 3, y + 17 + runTilt * 0.18, 25, 14, 5, '#ed453c');
+  roundedRect(x + 7, y + 4, 19, 20, 6, '#ffd09a');
+  ctx.fillStyle = '#e94c3e';
+  ctx.fillRect(x + 4, y + 1, 23, 8);
+  ctx.fillRect(x + 1, y + 8, 29, 5);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x + 19, y + 12, 5, 6);
+  ctx.fillStyle = '#30252a';
+  ctx.fillRect(x + 22, y + 14, 2, 4);
+  ctx.fillStyle = '#a72c2e';
+  ctx.fillRect(x + 14, y + 20, 7, 2);
+  ctx.fillStyle = '#f7f0de';
+  ctx.fillRect(x + 10, y + 4, 11, 3);
+
+  ctx.restore();
 }
 
 function drawDecor() {
@@ -430,7 +512,8 @@ function draw() {
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.life / 0.55, 0, 1);
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - cameraX, p.y, 5, 5);
+    const pulse = 1 + Math.sin((0.55 - p.life) * 25) * 0.6;
+    ctx.fillRect(p.x - cameraX, p.y, p.size * pulse, p.size * pulse);
   }
   ctx.globalAlpha = 1;
   if (messageTimer > 0) {
