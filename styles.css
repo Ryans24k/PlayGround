@@ -221,7 +221,7 @@ h1 {
   font-weight: 700;
   padding: 0;
   user-select: none;
-  touch-action: manipulation;
+  touch-action: none;
 }
 
 .dpad-btn.up { grid-column: 2; grid-row: 1; }
@@ -237,7 +237,7 @@ h1 {
   letter-spacing: 0.14em;
   cursor: pointer;
   user-select: none;
-  touch-action: manipulation;
+  touch-action: none;
 }
 
 @media (max-width: 700px) {
