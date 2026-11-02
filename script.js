@@ -69,7 +69,7 @@ const state = {
   enemies: [],
   graves: [],
   smokeClouds: [],
-  smokeCharges: 0
+  smokeAbility: false
 };
 
 function resetLevel() {
@@ -77,7 +77,7 @@ function resetLevel() {
   input.jumpQueued = false;
   input.lastDirectionTap.left = 0;
   input.lastDirectionTap.right = 0;
-  state.smokeCharges = 0;
+  state.smokeAbility = false;
   state.hero = { x: 72, y: FLOOR_Y - 42, w: 30, h: 42, growth: 1, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 };
   state.coinsOnMap = coinSpots.map(([x, y]) => ({ x, y, taken: false, bob: Math.random() * Math.PI * 2 }));
   state.enemies = enemySeeds.map((e, i) => ({ ...e, y: FLOOR_Y - 29, w: 34, h: 29, dir: i % 2 ? -1 : 1, alive: true, phase: Math.random() * 3 }));
@@ -92,7 +92,7 @@ function updateHud() {
   scoreEl.textContent = String(state.score);
   coinsEl.textContent = String(state.coins);
   livesEl.textContent = String(state.lives);
-  smokeEl.textContent = String(state.smokeCharges);
+  smokeEl.textContent = state.smokeAbility ? 'Ready' : '—';
   bestEl.textContent = String(state.best);
 }
 
@@ -145,6 +145,15 @@ function hurt() {
   const h = state.hero;
   if (h.invuln > 0) return;
   burst(h.x + h.w / 2, h.y + h.h / 2, '#fff0bd', 18);
+  if (state.smokeAbility) {
+    state.smokeAbility = false;
+    h.vy = -260;
+    h.grounded = false;
+    h.jumpsUsed = 1;
+    h.invuln = 1.7;
+    updateHud();
+    return;
+  }
   if (h.growth > 1) {
     // The growth potion absorbs one hit: shrink in place instead of losing a life and respawning.
     const feet = h.y + h.h;
@@ -182,11 +191,7 @@ function releaseSmokeClouds(direction) {
   const h = state.hero;
   const x = h.x + h.w / 2 + direction * 16;
   const y = h.y + h.h / 2;
-  for (const spread of [-115, 0, 115]) {
-    state.smokeClouds.push({ x, y, vx: direction * 340, vy: spread, life: 1.1, radius: 34 });
-  }
-  state.smokeCharges -= 1;
-  updateHud();
+  state.smokeClouds.push({ x, y, vx: direction * 340, vy: 0, life: 1.1, radius: 34 });
 }
 
 function updateSmokeClouds(dt) {
@@ -278,7 +283,7 @@ function update(dt) {
           h.h = 48;
           h.growth = 1.14;
         } else {
-          state.smokeCharges += 1;
+          state.smokeAbility = true;
         }
         state.score += 300;
         burst(powerup.x, py, '#c7ff9a', 18);
@@ -655,7 +660,7 @@ function setControl(control, pressed) {
     const previousTap = input.lastDirectionTap[control];
     if (previousTap && now - previousTap <= 360) {
       input.lastDirectionTap[control] = 0;
-      if (state.smokeCharges > 0) releaseSmokeClouds(control === 'left' ? -1 : 1);
+      if (state.smokeAbility) releaseSmokeClouds(control === 'left' ? -1 : 1);
     } else {
       input.lastDirectionTap[control] = now;
     }
