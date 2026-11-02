@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#101c17" />
+  <title>FIELD NOTES — Lost World Expedition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="game-shell">
+    <canvas id="world" aria-label="3D dinosaur field expedition game"></canvas>
+    <div class="vignette"></div>
+    <div id="start-screen" class="screen-cover">
+      <div class="start-art"></div>
+      <div class="start-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> FIELD NOTES · EXPEDITION 07</div>
+        <h1>The Lost<br><i>World</i></h1>
+        <p class="start-sub">A field photographer’s journey into the age of giants.</p>
+        <div class="briefing">
+          <div class="brief-icon">◎</div><div><b>YOUR ASSIGNMENT</b><span>Find the T. rex. Get the shot. Make it back.</span></div>
+        </div>
+        <button id="start-button" class="primary-button">BEGIN EXPEDITION <span>↗</span></button>
+        <div class="start-note">WASD to move · Mouse to look · F to photograph</div>
+      </div>
+      <div class="start-footer"><span>ISLA VERDE BIOSPHERE</span><span>EST. 04:32 · OVERCAST</span></div>
+    </div>
+    <div id="hud" class="hud hidden">
+      <header class="topbar">
+        <div class="brand-mark"><span class="brand-symbol">✳</span><span>FIELD NOTES<small>ISLA VERDE · 07</small></span></div>
+        <div class="objective"><span class="live-dot"></span><span id="objective-text">PHOTOGRAPH A T. REX</span><small id="objective-sub">Deep in the valley · follow the river</small></div>
+        <div class="wallet"><span class="coin">◈</span><span id="money">$120</span><button id="open-shop" class="shop-button">FIELD SHOP <span>↗</span></button></div>
+      </header>
+      <div class="left-stack">
+        <div class="mini-card compass-card"><div class="micro-label">FIELD COMPASS</div><div class="compass-row"><span class="compass-n">N</span><div class="compass-ring"><i></i><b id="compass-needle">▲</b></div><span class="compass-dir" id="compass-dir">N</span></div><div class="compass-foot"><span>RIVER VALLEY</span><span id="distance-label">— m</span></div></div>
+        <div class="mini-card camera-card"><div class="micro-label">CAMERA KIT <span id="camera-level">MK I</span></div><div class="camera-spec"><span>◉</span><div><b id="lens-label">35 mm</b><small>OPTICAL LENS</small></div><div class="film"><i></i><i></i><i></i><i></i><i></i></div></div></div>
+      </div>
+      <div class="right-stack"><div class="weather"><span class="weather-icon">☁</span><div><b>CANOPY</b><small>MISTY · 18°</small></div></div><div class="photo-count"><span class="count-icon">▣</span><div><b id="photo-count">00</b><small>FIELD SHOTS</small></div></div></div>
+      <div id="toast" class="toast"></div>
+      <div id="crosshair" class="crosshair"><i></i><i></i><i></i><i></i><span></span></div>
+      <div id="target-tag" class="target-tag hidden"><span>◎</span><div><b id="target-name">UNIDENTIFIED</b><small id="target-range">IN RANGE</small></div><em id="target-value">$40</em></div>
+      <div class="prompt hidden" id="action-prompt"><span class="keycap">E</span><span id="prompt-label">INTERACT</span></div>
+      <div class="camera-feedback" id="camera-feedback"><div class="flash"></div><div class="photo-result" id="photo-result"></div></div>
+      <div class="map-card"><div class="map-head"><span>YOUR LOCATION</span><span>● FIELD MAP</span></div><div class="map-canvas" id="map-canvas"><div class="map-river"></div><div class="map-path"></div><i class="map-camp">⌂</i><i class="map-player" id="map-player"></i><i class="map-rex">✦</i></div><div class="map-foot"><span>↑ VALLEY TRAIL</span><span id="coord-label">0° 00′ N</span></div></div>
+      <footer class="bottom-hud"><div class="controls-hint"><span><kbd>W A S D</kbd> MOVE</span><span><kbd>SHIFT</kbd> SPRINT</span><span><kbd>F</kbd> SHUTTER</span><span><kbd>E</kbd> INTERACT</span></div><button id="journal-button" class="journal-button">FIELD JOURNAL <span>J</span></button></footer>
+      <div class="mobile-controls" id="mobile-controls"><div class="joystick" id="joystick"><div class="joy-knob" id="joy-knob"></div></div><div class="mobile-actions"><button id="mobile-run">RUN</button><button id="mobile-photo">◉</button><button id="mobile-use">USE</button></div><div class="look-zone" id="look-zone"></div></div>
+    </div>
+    <section class="modal hidden" id="shop-modal"><div class="modal-backdrop"></div><div class="modal-panel shop-panel"><button class="close-modal" data-close>×</button><div class="modal-eyebrow">SUPPLY DEPOT · CAMP DELTA</div><h2>Field <i>shop</i></h2><p class="modal-intro">Tools for the trail. Pick your next advantage.</p><div class="shop-balance">AVAILABLE FUNDS <b id="shop-money">$120</b></div><div id="sell-row" class="sell-row hidden"><div><b>SELL FIELD ROLL</b><small id="sell-description">0 photographs awaiting buyers</small></div><button id="sell-button" class="buy-button">SELL</button></div><div class="shop-items" id="shop-items"></div><div class="modal-foot">Walk up to the depot on the forest trail to shop in the field.</div></div></section>
+    <section class="modal hidden" id="journal-modal"><div class="modal-backdrop"></div><div class="modal-panel journal-panel"><button class="close-modal" data-close>×</button><div class="modal-eyebrow">EXPEDITION LOG · 07</div><h2>Field <i>journal</i></h2><div class="journal-goal"><span>01</span><div><b>THE KING OF THE VALLEY</b><p>Capture a clear photograph of the Tyrannosaurus rex. It is somewhere beyond the river crossings, in the deep valley.</p></div><span class="goal-status" id="rex-goal-status">IN PROGRESS</span></div><div class="journal-entry"><span>FIELD TIP</span><p>Different discoveries have different market value. Frame a creature in the camera reticle, then press <b>F</b>. Follow the water uphill, and watch your footing around the crossings.</p></div><div class="journal-stats"><div><small>DISCOVERIES</small><b id="journal-photos">0</b></div><div><small>FUNDS</small><b id="journal-cash">$120</b></div><div><small>GEAR</small><b id="journal-gear">FIELD KIT</b></div></div></div></section>
+    <section class="modal hidden" id="welcome-modal"><div class="modal-backdrop"></div><div class="modal-panel welcome-panel"><button class="close-modal" data-close>×</button><div class="modal-eyebrow">FIELD BRIEFING · CAMP DELTA</div><h2>Welcome to<br><i>Isla Verde.</i></h2><p class="welcome-copy">A living valley, a handful of film, and one very large assignment. Follow the trail north through the river country. Photograph wildlife to fund better gear—and save your best frame for the T. rex.</p><div class="welcome-controls"><span><kbd>W A S D</kbd> WALK</span><span><kbd>F</kbd> PHOTO</span><span><kbd>E</kbd> USE / SHOP</span><span><kbd>J</kbd> JOURNAL</span></div><button id="briefing-done" class="primary-button">LET'S GO <span>↗</span></button></div></section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
