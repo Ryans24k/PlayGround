@@ -24,6 +24,7 @@ A spooky side-scrolling platform adventure starring a tiny vampire. Leap through
 - **Move:** Left/Right arrows or **A/D**
 - **Jump:** **Space**, **Up arrow**, or **W**; press again in midair to double-jump
 - **Touch:** Use the on-screen left, right, and jump controls
+- **Gravestones:** Bump one from underneath to release a zombie and a growth potion
 - **Goal:** Reach the final gate while collecting moon coins and avoiding spirits and gaps
 
 Open `index.html` in a modern browser to play. No build step or dependencies are required.

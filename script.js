@@ -47,6 +47,12 @@ const enemySeeds = [
   { x: 2860, min: 2780, max: 2940 }, { x: 3330, min: 3180, max: 3430 },
   { x: 3870, min: 3790, max: 4070 }
 ];
+const graveSeeds = [
+  { x: 625, platformX: 555 },
+  { x: 1610, platformX: 1535 },
+  { x: 2595, platformX: 2515 },
+  { x: 3560, platformX: 3480 }
+];
 
 const state = {
   running: false,
@@ -57,17 +63,19 @@ const state = {
   camera: 0,
   time: 0,
   particles: [],
-  hero: { x: 72, y: FLOOR_Y - 44, w: 30, h: 42, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 },
+  hero: { x: 72, y: FLOOR_Y - 42, w: 30, h: 42, growth: 1, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 },
   coinsOnMap: [],
-  enemies: []
+  enemies: [],
+  graves: []
 };
 
 function resetLevel() {
   input.jump = false;
   input.jumpQueued = false;
-  state.hero = { x: 72, y: FLOOR_Y - 44, w: 30, h: 42, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 };
+  state.hero = { x: 72, y: FLOOR_Y - 42, w: 30, h: 42, growth: 1, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 };
   state.coinsOnMap = coinSpots.map(([x, y]) => ({ x, y, taken: false, bob: Math.random() * Math.PI * 2 }));
   state.enemies = enemySeeds.map((e, i) => ({ ...e, y: FLOOR_Y - 29, w: 34, h: 29, dir: i % 2 ? -1 : 1, alive: true, phase: Math.random() * 3 }));
+  state.graves = graveSeeds.map((grave) => ({ ...grave, triggered: false, zombieTime: 0, powerup: null }));
   state.particles = [];
   state.camera = 0;
   state.time = 0;
@@ -116,6 +124,13 @@ function burst(x, y, color, count = 10) {
 
 function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function triggerGrave(grave) {
+  if (grave.triggered) return;
+  grave.triggered = true;
+  grave.zombieTime = 0.001;
+  burst(grave.x, platforms.find((platform) => platform.x === grave.platformX).y, '#b8d7a1', 9);
 }
 
 function hurt() {
@@ -185,6 +200,34 @@ function update(dt) {
     } else if (h.vy < 0 && previousTop >= p.y + p.h && h.y <= p.y + p.h) {
       h.y = p.y + p.h;
       h.vy = 20;
+      for (const grave of state.graves) {
+        if (grave.platformX === p.x && h.x + h.w > grave.x - 19 && h.x < grave.x + 19) triggerGrave(grave);
+      }
+    }
+  }
+
+  for (const grave of state.graves) {
+    if (!grave.triggered) continue;
+    grave.zombieTime += dt;
+    const platform = platforms.find((item) => item.x === grave.platformX);
+    if (!grave.powerup && grave.zombieTime >= .72) {
+      grave.powerup = { x: grave.x, y: platform.y - 24, collected: false, bob: Math.random() * Math.PI * 2 };
+    }
+    if (grave.powerup && !grave.powerup.collected) {
+      const powerup = grave.powerup;
+      const py = powerup.y + Math.sin(state.time * 4 + powerup.bob) * 3;
+      if (h.x + h.w > powerup.x - 13 && h.x < powerup.x + 13 && h.y + h.h > py - 15 && h.y < py + 15) {
+        powerup.collected = true;
+        if (h.growth === 1) {
+          h.x -= 2;
+          h.y -= 6;
+          h.w = 34;
+          h.h = 48;
+          h.growth = 1.14;
+        }
+        state.score += 300;
+        burst(powerup.x, py, '#c7ff9a', 18);
+      }
     }
   }
 
@@ -339,6 +382,74 @@ function drawPlatforms() {
   }
 }
 
+function drawGrave(grave) {
+  const platform = platforms.find((item) => item.x === grave.platformX);
+  const x = grave.x - state.camera;
+  if (x < -40 || x > W + 40) return;
+  const y = platform.y;
+  ctx.fillStyle = '#363747';
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y - 2);
+  ctx.lineTo(x - 15, y - 23);
+  ctx.quadraticCurveTo(x - 15, y - 31, x - 7, y - 31);
+  ctx.lineTo(x + 7, y - 31);
+  ctx.quadraticCurveTo(x + 15, y - 31, x + 15, y - 23);
+  ctx.lineTo(x + 15, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#77798a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#a8a9b5';
+  ctx.fillRect(x - 2, y - 25, 4, 15);
+  ctx.fillRect(x - 7, y - 20, 14, 4);
+  ctx.fillStyle = '#202434';
+  ctx.fillRect(x - 19, y - 3, 38, 4);
+}
+
+function drawGraveRewards() {
+  for (const grave of state.graves) {
+    const platform = platforms.find((item) => item.x === grave.platformX);
+    const x = grave.x - state.camera;
+    if (grave.triggered && grave.zombieTime < .95 && x > -45 && x < W + 45) {
+      const rise = Math.min(1, grave.zombieTime / .42);
+      const zombieY = platform.y - rise * 34;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - grave.zombieTime / .95) * 2.5);
+      ctx.fillStyle = '#78936d';
+      ctx.beginPath(); ctx.arc(x, zombieY - 12, 10, Math.PI, 0); ctx.fill();
+      ctx.fillRect(x - 10, zombieY - 12, 20, 17);
+      ctx.fillStyle = '#d8e6ba';
+      ctx.fillRect(x - 7, zombieY - 15, 4, 4); ctx.fillRect(x + 3, zombieY - 15, 4, 4);
+      ctx.fillStyle = '#303d35';
+      ctx.fillRect(x - 6, zombieY - 14, 2, 2); ctx.fillRect(x + 4, zombieY - 14, 2, 2);
+      ctx.fillStyle = '#b7c894';
+      ctx.fillRect(x - 13, zombieY + 2, 8, 4); ctx.fillRect(x + 5, zombieY + 2, 8, 4);
+      if (grave.zombieTime > .4) {
+        ctx.fillStyle = '#c9ff91';
+        ctx.beginPath(); ctx.arc(x + 17, zombieY - 7, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f2ffd7';
+        ctx.beginPath(); ctx.arc(x + 15, zombieY - 9, 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    const powerup = grave.powerup;
+    if (!powerup || powerup.collected || x < -30 || x > W + 30) continue;
+    const y = powerup.y + Math.sin(state.time * 4 + powerup.bob) * 3;
+    ctx.fillStyle = 'rgba(177, 255, 123, .2)';
+    ctx.beginPath(); ctx.arc(x, y, 17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9bdf72';
+    ctx.beginPath(); ctx.moveTo(x - 8, y - 9); ctx.lineTo(x + 8, y - 9); ctx.lineTo(x + 6, y + 8); ctx.quadraticCurveTo(x, y + 13, x - 6, y + 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e9ffd0';
+    ctx.fillRect(x - 5, y - 12, 10, 4);
+    ctx.fillStyle = '#f1a4ff';
+    ctx.fillRect(x - 5, y - 2, 10, 5);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 3, y - 7, 2, 4);
+  }
+}
+
 function drawCoin(coin) {
   const x = coin.x - state.camera;
   if (x < -30 || x > W + 30 || coin.taken) return;
@@ -393,6 +504,7 @@ function drawHero() {
 
   ctx.save();
   ctx.translate(x + h.w / 2, h.y);
+  ctx.scale(h.growth, h.growth);
   if (h.facing < 0) ctx.scale(-1, 1);
   // Tiny vampire hero: sweeping cape, high collar, widow's peak, and fangs.
   ctx.fillStyle = '#541f47';
@@ -435,7 +547,9 @@ function drawGoal() {
 function render() {
   drawSky();
   drawPlatforms();
+  for (const grave of state.graves) drawGrave(grave);
   for (const coin of state.coinsOnMap) drawCoin(coin);
+  drawGraveRewards();
   drawGoal();
   for (const enemy of state.enemies) drawEnemy(enemy);
   for (const p of state.particles) {
