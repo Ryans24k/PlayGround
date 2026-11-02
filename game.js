@@ -76,7 +76,7 @@ function buildLevel() {
 
 function resetGame() {
   buildLevel();
-  player = { x: 62, y: GROUND_Y - 48, w: 30, h: 46, vx: 0, vy: 0, grounded: true, coyote: 0.12, jumpBuffer: 0, facing: 1, lives: 3, coins: 0, invulnerable: 0, walk: 0, checkpoint: 62, checkpointActive: false };
+  player = { x: 62, y: GROUND_Y - 48, w: 30, h: 46, vx: 0, vy: 0, grounded: true, coyote: 0.12, jumpBuffer: 0, facing: 1, lives: 3, coins: 0, invulnerable: 0, walk: 0, ducking: false, duckBlend: 0, checkpoint: 62, checkpointActive: false };
   cameraX = 0;
   elapsed = 0;
   particles = [];
@@ -149,14 +149,18 @@ function movePlayer(dt) {
   const left = keys.has('ArrowLeft') || keys.has('a') || touchDirs.has('left');
   const right = keys.has('ArrowRight') || keys.has('d') || touchDirs.has('right');
   const jumpHeld = keys.has('ArrowUp') || keys.has('w') || keys.has(' ') || touchDirs.has('up') || touchDirs.has('jump');
+  const duckHeld = keys.has('ArrowDown') || keys.has('s') || touchDirs.has('down');
+  player.ducking = player.grounded && duckHeld;
+  player.duckBlend += ((player.ducking ? 1 : 0) - player.duckBlend) * Math.min(1, dt * 13);
   const direction = Number(right) - Number(left);
   if (direction) {
-    player.vx += direction * 1500 * dt;
+    player.vx += direction * (player.ducking ? 760 : 1500) * dt;
     player.facing = direction;
   } else {
-    player.vx *= Math.pow(0.0008, dt);
+    player.vx *= Math.pow(player.ducking ? 0.00008 : 0.0008, dt);
   }
-  player.vx = clamp(player.vx, -285, 285);
+  const maxSpeed = player.ducking ? 112 : 285;
+  player.vx = clamp(player.vx, -maxSpeed, maxSpeed);
   if (jumpQueued) player.jumpBuffer = 0.13;
   else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
   if (player.grounded) player.coyote = 0.12;
@@ -700,8 +704,9 @@ function drawPlayer() {
   const runAmount = moving ? clamp(speed / 150, 0, 1) : 0;
   const phase = player.walk;
   const stride = moving ? Math.sin(phase) : 0;
-  const bob = moving ? Math.abs(Math.sin(phase)) * 1.8 * runAmount : 0;
-  const lean = moving ? clamp(player.vx / 285, -1, 1) * 0.12 : 0;
+  const duck = player.duckBlend || 0;
+  const bob = moving ? Math.abs(Math.sin(phase)) * 1.8 * runAmount * (1 - duck) : Math.sin(elapsed * 10) * 0.45 * duck;
+  const lean = moving ? clamp(player.vx / 285, -1, 1) * 0.12 * (1 - duck) : 0;
   const airborne = !player.grounded;
   const shadowY = Math.max(0, GROUND_Y - (y + player.h));
 
@@ -711,13 +716,14 @@ function drawPlayer() {
   ctx.fill();
 
   ctx.save();
-  ctx.translate(x + player.w / 2, y + player.h / 2 + bob);
+  ctx.translate(x + player.w / 2, y + player.h / 2 + bob + duck * 6);
   ctx.scale(player.facing, 1);
-  ctx.scale(1, 1 + (moving ? Math.sin(phase * 2) * 0.025 * runAmount : 0));
-  ctx.rotate(airborne ? (player.vy < 0 ? -0.08 : 0.07) : -lean);
+  ctx.scale(1, (1 + (moving ? Math.sin(phase * 2) * 0.025 * runAmount : 0)) * (1 - duck * 0.34));
+  ctx.rotate(airborne ? (player.vy < 0 ? -0.08 : 0.07) * (1 - duck) : -lean);
 
-  // Arms counter-swing against the legs to make each stride feel propulsive.
+  // Arms counter-swing on a run, then tuck in as the player settles into a crouch.
   const armSwing = moving ? stride * 0.88 * runAmount : airborne ? -0.4 : 0.08;
+  const crouchedArm = armSwing * (1 - duck) + duck * 0.82;
   const drawLimb = (px, py, angle, length, width, top, bottom) => {
     ctx.save();
     ctx.translate(px, py);
@@ -751,8 +757,8 @@ function drawPlayer() {
 
   // Legs swing in a wide side-profile arc: one reaches forward as the other pushes back.
   const legSwing = moving ? Math.sin(phase) * 1.25 * runAmount : 0;
-  const backLeg = airborne ? 0.9 : legSwing;
-  const frontLeg = airborne ? -0.65 : -legSwing;
+  const backLeg = airborne ? 0.9 : legSwing + duck * 0.9;
+  const frontLeg = airborne ? -0.65 : -legSwing - duck * 0.9;
   const farLegX = -2.5 - Math.sin(phase) * 1.6 * runAmount;
   const nearLegX = 2.5 + Math.sin(phase) * 1.6 * runAmount;
   const farFootX = farLegX - Math.sin(backLeg) * 10;
@@ -763,7 +769,7 @@ function drawPlayer() {
   drawShoe(farFootX, farFootY, backLeg * 0.16, 11, 5.5, '#d58d57', '#6f3b2d');
 
   // Back arm, torso, and the forward arm are separate layers for a little depth.
-  drawLimb(-7, -4, armSwing, 12, 5, '#f2bd91', '#bd7958');
+  drawLimb(-7, -4, crouchedArm, 12 - duck * 2, 5, '#f2bd91', '#bd7958');
   roundedGradientRect(-9, -4, 17, 19, 5, '#5fb0ff', '#174d9d');
   // Bring the front leg over the shirt so its forward/back swing stays readable.
   drawLimb(nearLegX, 12, frontLeg, 10.5, 5.5, '#55a5ff', '#1553b5');
@@ -779,7 +785,7 @@ function drawPlayer() {
   roundedGradientRect(0, 8, 7, 7, 2, '#f8cc4f', '#ca7b21');
   ctx.fillStyle = 'rgba(255,238,172,0.8)';
   ctx.fillRect(1, 9, 2, 3);
-  drawLimb(6, -3, -armSwing * 0.85, 11, 6, '#ffd2a8', '#c17b58');
+  drawLimb(6, -3, -crouchedArm * 0.85, 11 - duck * 2, 6, '#ffd2a8', '#c17b58');
 
   // Profiled face: a single eye, a small forward nose, and a visible ear.
   const face = ctx.createLinearGradient(-7, -16, 10, 3);
