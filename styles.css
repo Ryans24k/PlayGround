@@ -46,7 +46,7 @@ button {
 
 .app-shell {
   width: min(100vw, 1024px);
-  height: min(100vh, 740px);
+  height: min(100dvh, 740px);
   padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
@@ -83,6 +83,35 @@ button {
   font-size: clamp(1.4rem, 2vw, 2.1rem);
   color: #ffd85d;
   text-shadow: 0 0 12px rgba(255, 216, 93, 0.55);
+}
+
+.hud-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.hud-actions button {
+  min-width: 100px;
+  padding: 7px 14px;
+  border: 1px solid rgba(120, 196, 255, 0.52);
+  border-radius: 9px;
+  background: rgba(36, 67, 93, 0.72);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.hud-actions button:hover:not(:disabled) {
+  background: rgba(57, 94, 255, 0.45);
+}
+
+.hud-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .health-wrap {
@@ -256,7 +285,55 @@ h1 {
   }
 
   .dpad {
-    width: 120px;
-    height: 120px;
+    width: clamp(88px, 17vh, 120px);
+    height: clamp(88px, 17vh, 120px);
+  }
+
+  .touch-controls {
+    min-height: 0;
+  }
+
+  .fire-button {
+    width: min(34vw, 138px);
+    min-height: 64px;
+  }
+
+  .hud-actions button {
+    min-width: 90px;
+    padding: 6px 12px;
+  }
+}
+
+@media (max-height: 620px) {
+  .app-shell {
+    gap: 6px;
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .hud {
+    padding: 6px 10px;
+    gap: 4px 8px;
+  }
+
+  .stat {
+    min-height: 42px;
+  }
+
+  .label {
+    font-size: 0.62rem;
+  }
+
+  .touch-controls {
+    min-height: 0;
+  }
+
+  .dpad {
+    width: 88px;
+    height: 88px;
+  }
+
+  .fire-button {
+    min-height: 56px;
   }
 }

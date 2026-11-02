@@ -7,6 +7,8 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlayText = document.getElementById('overlayText');
 const startButton = document.getElementById('startButton');
+const pauseButton = document.getElementById('pauseButton');
+const restartButton = document.getElementById('restartButton');
 const jumpButton = document.getElementById('fireButton');
 const touchButtons = [...document.querySelectorAll('[data-dir]')];
 
@@ -104,8 +106,39 @@ function startGame() {
   resetGame();
   gameState = 'playing';
   overlay.classList.remove('visible');
+  pauseButton.disabled = false;
+  pauseButton.textContent = 'Pause';
+  pauseButton.setAttribute('aria-label', 'Pause game');
   keys.clear();
   touchDirs.clear();
+}
+
+function resumeGame() {
+  gameState = 'playing';
+  overlay.classList.remove('visible');
+  pauseButton.disabled = false;
+  pauseButton.textContent = 'Pause';
+  pauseButton.setAttribute('aria-label', 'Pause game');
+  keys.clear();
+  touchDirs.clear();
+}
+
+function togglePause() {
+  if (gameState === 'playing') {
+    gameState = 'paused';
+    pauseButton.textContent = 'Resume';
+    pauseButton.setAttribute('aria-label', 'Resume game');
+    keys.clear();
+    touchDirs.clear();
+    showOverlay('Taking a breather?', 'Your run is paused. Pick up where you left off whenever you are ready.', 'Resume Run');
+  } else if (gameState === 'paused') {
+    resumeGame();
+  }
+}
+
+function handleOverlayAction() {
+  if (gameState === 'paused') resumeGame();
+  else startGame();
 }
 
 function setMessage(text) {
@@ -130,6 +163,7 @@ function loseLife(fell = false) {
   updateHUD();
   if (player.lives <= 0) {
     gameState = 'over';
+    pauseButton.disabled = true;
     showOverlay('Ouch!', `You collected ${player.coins} coins. Give it another try!`, 'Try Again');
     return;
   }
@@ -264,6 +298,7 @@ function update(dt) {
   if (player.x + player.w >= GOAL_X) {
     if (player.coins >= TARGET_COINS) {
       gameState = 'won';
+      pauseButton.disabled = true;
       showOverlay('You made it!', `Amazing run! You grabbed ${player.coins} coins and reached the flag.`, 'Play Again');
     } else {
       setMessage(`Find ${TARGET_COINS - player.coins} more coins to unlock the flag!`);
@@ -931,13 +966,15 @@ function frame(now) {
   const dt = Math.min((now - lastTime) / 1000 || 0, 0.033);
   lastTime = now;
   if (gameState === 'playing') update(dt);
-  else elapsed += dt * 0.35;
+  else if (gameState === 'menu') elapsed += dt * 0.35;
   cameraShake *= Math.pow(0.01, dt);
   draw();
   requestAnimationFrame(frame);
 }
 
-startButton.addEventListener('click', startGame);
+startButton.addEventListener('click', handleOverlayAction);
+pauseButton.addEventListener('click', togglePause);
+restartButton.addEventListener('click', startGame);
 canvas.addEventListener('pointerdown', () => { if (gameState === 'playing') jumpQueued = true; });
 jumpButton.addEventListener('pointerdown', event => {
   event.preventDefault();
@@ -963,13 +1000,20 @@ jumpButton.addEventListener('pointercancel', () => touchDirs.delete('jump'));
 jumpButton.addEventListener('lostpointercapture', () => touchDirs.delete('jump'));
 window.addEventListener('keydown', event => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'ArrowDown'].includes(key)) event.preventDefault();
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'ArrowDown', 'Escape'].includes(key)) event.preventDefault();
+  if ((key === 'p' || key === 'Escape') && !event.repeat) {
+    togglePause();
+    return;
+  }
   keys.add(key);
   if ((key === ' ' || key === 'ArrowUp' || key === 'w') && gameState === 'playing' && !event.repeat) jumpQueued = true;
-  if (key === 'Enter' && gameState !== 'playing') startGame();
+  if (key === 'Enter' && gameState !== 'playing') handleOverlayAction();
 });
 window.addEventListener('keyup', event => keys.delete(event.key.length === 1 ? event.key.toLowerCase() : event.key));
 window.addEventListener('blur', () => { keys.clear(); touchDirs.clear(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && gameState === 'playing') togglePause();
+});
 
 resetGame();
 requestAnimationFrame(frame);
