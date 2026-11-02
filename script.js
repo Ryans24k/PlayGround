@@ -5,522 +5,436 @@ const titleText = document.getElementById('title');
 const messageText = document.getElementById('message');
 const startButton = document.getElementById('startButton');
 const scoreEl = document.getElementById('score');
+const coinsEl = document.getElementById('coins');
 const livesEl = document.getElementById('lives');
-const waveEl = document.getElementById('wave');
 const bestEl = document.getElementById('best');
-const touchButtons = document.querySelectorAll('[data-control]');
 
-const keys = { left: false, right: false, fire: false };
-const mouse = { x: canvas.width / 2, active: false };
+const W = canvas.width;
+const H = canvas.height;
+const WORLD_WIDTH = 4300;
+const FLOOR_Y = 510;
+const input = { left: false, right: false, jump: false, jumpQueued: false };
+const bestKey = 'moonlit-mayhem-best';
+
+const platforms = [
+  { x: 0, y: FLOOR_Y, w: 1080, h: 90 },
+  { x: 1220, y: FLOOR_Y, w: 800, h: 90 },
+  { x: 2150, y: FLOOR_Y, w: 830, h: 90 },
+  { x: 3100, y: FLOOR_Y, w: 1200, h: 90 },
+  { x: 300, y: 405, w: 150, h: 24 },
+  { x: 555, y: 330, w: 145, h: 24 },
+  { x: 815, y: 405, w: 155, h: 24 },
+  { x: 1280, y: 400, w: 160, h: 24 },
+  { x: 1535, y: 325, w: 150, h: 24 },
+  { x: 1790, y: 405, w: 145, h: 24 },
+  { x: 2260, y: 390, w: 170, h: 24 },
+  { x: 2515, y: 315, w: 160, h: 24 },
+  { x: 2780, y: 395, w: 150, h: 24 },
+  { x: 3220, y: 410, w: 160, h: 24 },
+  { x: 3480, y: 335, w: 160, h: 24 },
+  { x: 3750, y: 410, w: 160, h: 24 }
+];
+
+const coinSpots = [
+  [225, 455], [350, 360], [430, 455], [600, 285], [675, 455], [850, 360], [1010, 455],
+  [1135, 420], [1295, 350], [1380, 455], [1580, 280], [1700, 455], [1840, 355], [1975, 455],
+  [2085, 430], [2290, 340], [2375, 455], [2560, 270], [2700, 455], [2820, 345], [2945, 455],
+  [3030, 420], [3260, 360], [3380, 455], [3525, 290], [3650, 455], [3795, 360], [3940, 455], [4110, 455]
+];
+const enemySeeds = [
+  { x: 470, min: 455, max: 740 }, { x: 940, min: 860, max: 1030 },
+  { x: 1430, min: 1370, max: 1950 }, { x: 2320, min: 2220, max: 2460 },
+  { x: 2860, min: 2780, max: 2940 }, { x: 3330, min: 3180, max: 3430 },
+  { x: 3870, min: 3790, max: 4070 }
+];
 
 const state = {
   running: false,
-  won: false,
   score: 0,
-  lives: 5,
-  wave: 1,
-  best: Number(localStorage.getItem('starfall-best') || '0'),
-  elapsed: 0,
-  spawnTimer: 0,
-  enemyQueue: 0,
-  waveDelay: 0,
-  player: {
-    x: canvas.width / 2,
-    y: canvas.height - 72,
-    w: 26,
-    h: 34,
-    speed: 420,
-    fireCooldown: 0,
-    invulnerable: 0
-  },
-  bullets: [],
-  enemies: [],
+  coins: 0,
+  lives: 3,
+  best: Number(localStorage.getItem(bestKey) || 0),
+  camera: 0,
+  time: 0,
   particles: [],
-  stars: [],
-  lastTime: 0
+  hero: { x: 72, y: FLOOR_Y - 44, w: 30, h: 42, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 },
+  coinsOnMap: [],
+  enemies: []
 };
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function setupStars() {
-  state.stars = Array.from({ length: 120 }, () => ({
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height,
-    size: Math.random() * 2.6 + 1,
-    speed: Math.random() * 40 + 18,
-    alpha: Math.random() * 0.8 + 0.2
-  }));
-}
-
-function resetPlayer() {
-  state.player.x = canvas.width / 2;
-  state.player.y = canvas.height - 72;
-  state.player.fireCooldown = 0;
-  state.player.invulnerable = 0;
+function resetLevel() {
+  input.jump = false;
+  input.jumpQueued = false;
+  state.hero = { x: 72, y: FLOOR_Y - 44, w: 30, h: 42, vx: 0, vy: 0, facing: 1, grounded: false, jumpsUsed: 0, invuln: 0, checkpoint: 72 };
+  state.coinsOnMap = coinSpots.map(([x, y]) => ({ x, y, taken: false, bob: Math.random() * Math.PI * 2 }));
+  state.enemies = enemySeeds.map((e, i) => ({ ...e, y: FLOOR_Y - 29, w: 34, h: 29, dir: i % 2 ? -1 : 1, alive: true, phase: Math.random() * 3 }));
+  state.particles = [];
+  state.camera = 0;
+  state.time = 0;
 }
 
 function updateHud() {
   scoreEl.textContent = String(state.score);
+  coinsEl.textContent = String(state.coins);
   livesEl.textContent = String(state.lives);
-  waveEl.textContent = String(state.wave);
   bestEl.textContent = String(state.best);
 }
 
-function setOverlay(title, message, buttonLabel = 'Start Mission') {
+function overlayShow(title, message, button) {
   titleText.textContent = title;
   messageText.textContent = message;
-  startButton.textContent = buttonLabel;
+  startButton.textContent = button;
   overlay.classList.add('visible');
 }
-
-function hideOverlay() {
+function startGame() {
+  state.score = 0;
+  state.coins = 0;
+  state.lives = 3;
+  resetLevel();
+  state.running = true;
   overlay.classList.remove('visible');
+  updateHud();
 }
-
-function awardBest() {
+function endGame(won) {
+  state.running = false;
   if (state.score > state.best) {
     state.best = state.score;
-    localStorage.setItem('starfall-best', String(state.best));
+    localStorage.setItem(bestKey, String(state.best));
   }
-}
-
-function createBurst(x, y, color, count = 16) {
-  for (let i = 0; i < count; i += 1) {
-    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.75;
-    const speed = Math.random() * 140 + 35;
-    state.particles.push({
-      x,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 0.6 + Math.random() * 0.5,
-      maxLife: 0.6 + Math.random() * 0.5,
-      size: Math.random() * 4 + 2,
-      color
-    });
-  }
-}
-
-function shoot() {
-  const p = state.player;
-  if (p.fireCooldown > 0 || !state.running) return;
-
-  const bulletSpeed = 560;
-  state.bullets.push({
-    x: p.x,
-    y: p.y - p.h / 2 - 8,
-    radius: 5,
-    vy: -bulletSpeed,
-    color: '#7ce8ff'
-  });
-
-  p.fireCooldown = 0.22;
-}
-
-function spawnEnemy() {
-  const sidePadding = 32;
-  const x = sidePadding + Math.random() * (canvas.width - sidePadding * 2);
-  const size = 18 + Math.random() * 14;
-  const speed = 55 + state.wave * 18 + Math.random() * 25;
-  const drift = (Math.random() - 0.5) * 80;
-
-  state.enemies.push({
-    x,
-    y: -size,
-    radius: size / 2,
-    speed,
-    drift,
-    hp: 1 + Math.floor((state.wave - 1) / 3),
-    value: 25 + state.wave * 10,
-    color: state.wave % 2 === 0 ? '#ff7c70' : '#b699ff'
-  });
-}
-
-function startWave() {
-  state.enemyQueue = 6 + state.wave * 2;
-  state.spawnTimer = 0.35;
-  state.waveDelay = 0;
-}
-
-function resetGame() {
-  state.running = true;
-  state.won = false;
-  state.score = 0;
-  state.lives = 5;
-  state.wave = 1;
-  state.elapsed = 0;
-  state.spawnTimer = 0.35;
-  state.enemyQueue = 6;
-  state.waveDelay = 0;
-  state.bullets = [];
-  state.enemies = [];
-  state.particles = [];
-  resetPlayer();
   updateHud();
-  hideOverlay();
+  if (won) overlayShow('You escaped the fog!', `The haunted valley fades behind you. You collected ${state.coins} moon coins and scored ${state.score}.`, 'Play Again');
+  else overlayShow('The woods claimed you', `You scored ${state.score}. The spirits will be waiting for your next midnight run.`, 'Try Again');
 }
 
-function endGame(win) {
-  state.running = false;
-  state.won = win;
-  awardBest();
-  updateHud();
-
-  if (win) {
-    setOverlay('Mission Complete!', `You survived all waves and scored ${state.score} points.`, 'Play Again');
-  } else {
-    setOverlay('Ship Down', `You reached wave ${state.wave} with ${state.score} points.`, 'Retry Mission');
+function burst(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 45 + Math.random() * 150;
+    state.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .45 + Math.random() * .45, color, size: 3 + Math.random() * 4 });
   }
 }
 
-function takeDamage() {
-  if (!state.running || state.player.invulnerable > 0) return;
+function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
 
+function hurt() {
+  const h = state.hero;
+  if (h.invuln > 0) return;
   state.lives -= 1;
-  state.player.invulnerable = 1.2;
-  createBurst(state.player.x, state.player.y, '#ff8a8a', 28);
-
+  burst(h.x + h.w / 2, h.y + h.h / 2, '#fff0bd', 18);
   if (state.lives <= 0) {
     state.lives = 0;
     updateHud();
     endGame(false);
+    return;
   }
-}
-
-function handleCollisions() {
-  for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
-    const bullet = state.bullets[i];
-
-    for (let j = state.enemies.length - 1; j >= 0; j -= 1) {
-      const enemy = state.enemies[j];
-      const dx = bullet.x - enemy.x;
-      const dy = bullet.y - enemy.y;
-      const distance = Math.hypot(dx, dy);
-
-      if (distance < bullet.radius + enemy.radius) {
-        bullet.hit = true;
-        enemy.hp -= 1;
-        createBurst(enemy.x, enemy.y, '#6ce9ff', 12);
-
-        if (enemy.hp <= 0) {
-          state.score += enemy.value;
-          state.enemies.splice(j, 1);
-          createBurst(enemy.x, enemy.y, enemy.color, 22);
-        }
-        break;
-      }
-    }
-
-    if (bullet.hit) {
-      state.bullets.splice(i, 1);
-    }
-  }
-
-  for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
-    const enemy = state.enemies[i];
-    const dx = enemy.x - state.player.x;
-    const dy = enemy.y - state.player.y;
-    const distance = Math.hypot(dx, dy);
-
-    if (distance < enemy.radius + 18) {
-      state.enemies.splice(i, 1);
-      takeDamage();
-      createBurst(enemy.x, enemy.y, '#ff6d7f', 18);
-    } else if (enemy.y - enemy.radius > canvas.height + 40) {
-      state.enemies.splice(i, 1);
-      takeDamage();
-    }
-  }
-
-  if (state.score > state.best) {
-    state.best = state.score;
-    localStorage.setItem('starfall-best', String(state.best));
-  }
+  h.x = h.checkpoint;
+  h.y = FLOOR_Y - h.h - 2;
+  h.vx = 0;
+  h.vy = 0;
+  h.grounded = false;
+  h.jumpsUsed = 0;
+  h.invuln = 1.7;
+  state.camera = Math.max(0, h.x - 280);
 }
 
 function update(dt) {
-  if (!state.running) {
-    return;
+  if (!state.running) return;
+  state.time += dt;
+  const h = state.hero;
+  const previousBottom = h.y + h.h;
+  const previousTop = h.y;
+
+  const direction = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  if (direction) {
+    h.vx = direction * 270;
+    h.facing = direction;
+  } else {
+    h.vx *= Math.pow(.001, dt);
   }
-
-  state.elapsed += dt;
-  const p = state.player;
-
-  if (keys.left) p.x -= p.speed * dt;
-  if (keys.right) p.x += p.speed * dt;
-  if (mouse.active) {
-    p.x += (mouse.x - p.x) * 0.12;
+  if (input.jumpQueued) {
+    if (h.grounded || h.jumpsUsed < 2) {
+      h.vy = -610;
+      h.grounded = false;
+      h.jumpsUsed += 1;
+    }
+    input.jumpQueued = false;
   }
+  if (!input.jump && h.vy < -185) h.vy = -185;
 
-  p.x = clamp(p.x, 18, canvas.width - 18);
-  p.fireCooldown = Math.max(0, p.fireCooldown - dt);
-  p.invulnerable = Math.max(0, p.invulnerable - dt);
-
-  if (keys.fire || mouse.active) {
-    shoot();
+  h.x += h.vx * dt;
+  for (const p of platforms) {
+    if (!overlaps(h, p)) continue;
+    if (h.vx > 0) h.x = p.x - h.w;
+    else if (h.vx < 0) h.x = p.x + p.w;
+    h.vx = 0;
   }
+  h.x = Math.max(0, Math.min(WORLD_WIDTH - h.w, h.x));
 
-  for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
-    const bullet = state.bullets[i];
-    bullet.y += bullet.vy * dt;
-    if (bullet.y < -24 || bullet.hit) {
-      state.bullets.splice(i, 1);
+  h.vy += 1550 * dt;
+  h.y += h.vy * dt;
+  h.grounded = false;
+  for (const p of platforms) {
+    if (h.x + h.w <= p.x || h.x >= p.x + p.w) continue;
+    if (h.vy >= 0 && previousBottom <= p.y + 4 && h.y + h.h >= p.y) {
+      h.y = p.y - h.h;
+      h.vy = 0;
+      h.grounded = true;
+      h.jumpsUsed = 0;
+    } else if (h.vy < 0 && previousTop >= p.y + p.h && h.y <= p.y + p.h) {
+      h.y = p.y + p.h;
+      h.vy = 20;
     }
   }
 
-  state.spawnTimer -= dt;
-  if (state.enemyQueue > 0 && state.spawnTimer <= 0) {
-    spawnEnemy();
-    state.enemyQueue -= 1;
-    state.spawnTimer = Math.max(0.28, 1.1 - state.wave * 0.07 - Math.random() * 0.2);
+  if (h.x > 1190 && h.checkpoint < 1220) h.checkpoint = 1240;
+  if (h.x > 3030 && h.checkpoint < 3100) h.checkpoint = 3120;
+  if (h.y > H + 100) hurt();
+  h.invuln = Math.max(0, h.invuln - dt);
+
+  for (const coin of state.coinsOnMap) {
+    if (coin.taken) continue;
+    const cy = coin.y + Math.sin(state.time * 4 + coin.bob) * 4;
+    if (h.x + h.w > coin.x - 12 && h.x < coin.x + 12 && h.y + h.h > cy - 14 && h.y < cy + 14) {
+      coin.taken = true;
+      state.coins += 1;
+      state.score += 100;
+      burst(coin.x, cy, '#ffe36b', 8);
+    }
   }
 
-  for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
-    const enemy = state.enemies[i];
-    enemy.x += Math.sin((state.elapsed + i) * 3) * enemy.drift * dt;
-    enemy.y += enemy.speed * dt;
-    enemy.x = clamp(enemy.x, 18, canvas.width - 18);
-  }
-
-  state.particles = state.particles.filter((particle) => {
-    particle.x += particle.vx * dt;
-    particle.y += particle.vy * dt;
-    particle.life -= dt;
-    return particle.life > 0;
-  });
-
-  handleCollisions();
-
-  if (state.enemyQueue === 0 && state.enemies.length === 0) {
-    if (state.waveDelay <= 0) {
-      state.waveDelay = 1.4;
-      state.wave += 1;
-      updateHud();
-      if (state.wave > 6) {
-        endGame(true);
-        return;
+  for (const e of state.enemies) {
+    if (!e.alive) continue;
+    e.x += e.dir * 62 * dt;
+    if (e.x < e.min || e.x + e.w > e.max) e.dir *= -1;
+    e.y = FLOOR_Y - e.h + Math.sin(state.time * 5 + e.phase) * 2;
+    if (overlaps(h, e)) {
+      if (h.vy > 80 && previousBottom <= e.y + 13) {
+        e.alive = false;
+        h.vy = -360;
+        state.score += 200;
+        burst(e.x + e.w / 2, e.y + e.h / 2, '#ffb17a', 14);
+      } else {
+        hurt();
       }
-      startWave();
-    } else {
-      state.waveDelay -= dt;
     }
   }
 
+  for (const p of state.particles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 300 * dt;
+    p.life -= dt;
+  }
+  state.particles = state.particles.filter(p => p.life > 0);
+  state.camera += (Math.max(0, Math.min(WORLD_WIDTH - W, h.x - W * .35)) - state.camera) * Math.min(1, dt * 5);
+  if (h.x > 4130) endGame(true);
   updateHud();
 }
 
-function drawStars() {
-  ctx.fillStyle = 'rgba(5, 10, 20, 0.8)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function drawSky() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, '#11152f');
+  gradient.addColorStop(.62, '#302747');
+  gradient.addColorStop(1, '#65536b');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
 
-  for (const star of state.stars) {
-    star.y += star.speed * (1 / 60);
-    if (star.y > canvas.height) {
-      star.y = -5;
-      star.x = Math.random() * canvas.width;
-    }
+  // Cold moonlight and a slow drift of stars.
+  ctx.fillStyle = 'rgba(177, 201, 255, .12)';
+  ctx.beginPath(); ctx.arc(790, 105, 66, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e5e9ff';
+  ctx.beginPath(); ctx.arc(790, 105, 43, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#b7bddc';
+  ctx.beginPath(); ctx.arc(805, 92, 7, 0, Math.PI * 2); ctx.arc(776, 117, 5, 0, Math.PI * 2); ctx.arc(804, 124, 4, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 42; i++) {
+    const x = (i * 137 + 41) % W;
+    const y = 24 + ((i * 71) % 260);
+    const twinkle = .35 + (Math.sin(state.time * 2 + i) + 1) * .3;
+    ctx.globalAlpha = twinkle;
+    ctx.fillStyle = i % 4 === 0 ? '#d9c4ff' : '#e5e9ff';
+    ctx.fillRect(x, y, i % 5 === 0 ? 3 : 2, i % 5 === 0 ? 3 : 2);
+  }
+  ctx.globalAlpha = 1;
 
-    ctx.fillStyle = `rgba(255,255,255,${star.alpha})`;
-    ctx.fillRect(star.x, star.y, star.size, star.size);
+  // Jagged hills and a distant haunted keep.
+  for (let i = 0; i < 8; i++) {
+    const x = i * 170 - (state.camera * .2 % 170) - 40;
+    const y = 385 + (i % 3) * 26;
+    ctx.fillStyle = i % 2 ? '#25243d' : '#30283f';
+    ctx.beginPath(); ctx.moveTo(x - 120, y); ctx.lineTo(x - 55, y - 75); ctx.lineTo(x - 12, y - 24); ctx.lineTo(x + 35, y - 112); ctx.lineTo(x + 95, y - 18); ctx.lineTo(x + 150, y - 70); ctx.lineTo(x + 210, y); ctx.closePath(); ctx.fill();
+  }
+  const castleX = 570 - state.camera * .16;
+  ctx.fillStyle = '#1c1c32';
+  ctx.fillRect(castleX, 244, 132, 150);
+  ctx.fillRect(castleX - 18, 281, 35, 113);
+  ctx.fillRect(castleX + 115, 264, 35, 130);
+  ctx.beginPath();
+  ctx.moveTo(castleX - 24, 281); ctx.lineTo(castleX, 239); ctx.lineTo(castleX + 6, 281);
+  ctx.moveTo(castleX + 108, 264); ctx.lineTo(castleX + 132, 222); ctx.lineTo(castleX + 157, 264);
+  ctx.moveTo(castleX + 12, 245); ctx.lineTo(castleX + 33, 203); ctx.lineTo(castleX + 54, 245);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d5a4ff';
+  ctx.fillRect(castleX + 31, 275, 8, 15); ctx.fillRect(castleX + 91, 275, 8, 15); ctx.fillRect(castleX + 6, 307, 7, 13); ctx.fillRect(castleX + 128, 293, 7, 13);
+
+  // Wisps of ground fog drift in front of the hills.
+  for (let i = 0; i < 7; i++) {
+    const x = ((i * 223 - state.camera * .35 + state.time * 9) % (W + 260) + W + 260) % (W + 260) - 120;
+    const y = 425 + (i % 3) * 20;
+    ctx.fillStyle = 'rgba(180, 191, 226, .12)';
+    ctx.beginPath(); ctx.ellipse(x, y, 67, 13, 0, 0, Math.PI * 2); ctx.ellipse(x + 33, y - 8, 44, 14, 0, 0, Math.PI * 2); ctx.fill();
   }
 }
 
-function drawPlayer() {
-  const p = state.player;
-  const blink = p.invulnerable > 0 && Math.floor(p.invulnerable * 12) % 2 === 0;
-  if (blink) return;
+function drawPlatforms() {
+  for (const p of platforms) {
+    const sx = p.x - state.camera;
+    if (sx + p.w < -20 || sx > W + 20) continue;
+    ctx.fillStyle = p.y === FLOOR_Y ? '#353044' : '#48405a';
+    ctx.fillRect(sx, p.y, p.w, p.h);
+    ctx.fillStyle = '#79805b';
+    ctx.fillRect(sx, p.y, p.w, p.y === FLOOR_Y ? 11 : 7);
+    ctx.fillStyle = 'rgba(196, 177, 229, .18)';
+    for (let bx = sx + 10; bx < sx + p.w - 8; bx += 42) {
+      ctx.fillRect(bx, p.y + 26, 22, 3);
+      if (p.y !== FLOOR_Y) ctx.fillRect(bx + 8, p.y + 12, 3, 5);
+    }
+  }
+}
 
+function drawCoin(coin) {
+  const x = coin.x - state.camera;
+  if (x < -30 || x > W + 30 || coin.taken) return;
+  const y = coin.y + Math.sin(state.time * 4 + coin.bob) * 4;
+  ctx.fillStyle = '#9b7cff'; ctx.beginPath(); ctx.ellipse(x, y, 10, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e7dcff'; ctx.beginPath(); ctx.ellipse(x - 2, y - 2, 6, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#a98bff'; ctx.fillRect(x - 1, y - 5, 2, 10);
+}
+
+function drawEnemy(e) {
+  if (!e.alive) return;
+  const x = e.x - state.camera;
+  if (x < -50 || x > W + 50) return;
+  const bob = Math.sin(state.time * 8 + e.phase) * 2;
+  ctx.fillStyle = '#a9dbeb';
+  ctx.beginPath(); ctx.moveTo(x + 2, e.y + 26 + bob); ctx.lineTo(x + 3, e.y + 13 + bob); ctx.quadraticCurveTo(x + 17, e.y - 2 + bob, x + 31, e.y + 13 + bob); ctx.lineTo(x + 32, e.y + 27 + bob); ctx.lineTo(x + 24, e.y + 22 + bob); ctx.lineTo(x + 17, e.y + 29 + bob); ctx.lineTo(x + 9, e.y + 23 + bob); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f6f1ff'; ctx.fillRect(x + 5, e.y + 13 + bob, 24, 12);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + 8, e.y + 10 + bob, 7, 9); ctx.fillRect(x + 20, e.y + 10 + bob, 7, 9);
+  ctx.fillStyle = '#8b4fff'; ctx.fillRect(x + 11, e.y + 13 + bob, 3, 5); ctx.fillRect(x + 23, e.y + 13 + bob, 3, 5);
+}
+
+function drawHero() {
+  const h = state.hero;
+  if (h.invuln > 0 && Math.floor(state.time * 14) % 2 === 0) return;
+  const x = h.x - state.camera;
+  const running = Math.abs(h.vx) > 20 && h.grounded;
+  const leg = running ? Math.sin(state.time * 18) * 4 : 0;
   ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.fillStyle = '#7af4ff';
-  ctx.beginPath();
-  ctx.moveTo(0, -20);
-  ctx.lineTo(12, 14);
-  ctx.lineTo(0, 8);
-  ctx.lineTo(-12, 14);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = '#dfeeff';
-  ctx.fillRect(-3, 14, 6, 12);
+  ctx.translate(x + h.w / 2, h.y);
+  if (h.facing < 0) ctx.scale(-1, 1);
+  // Tiny vampire hero: sweeping cape, high collar, widow's peak, and fangs.
+  ctx.fillStyle = '#541f47';
+  ctx.beginPath(); ctx.moveTo(-10, 9); ctx.lineTo(-18, 17); ctx.lineTo(-15, 37 + leg); ctx.lineTo(-6, 32); ctx.lineTo(1, 39 - leg); ctx.lineTo(13, 31); ctx.lineTo(11, 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#a82f5c';
+  ctx.beginPath(); ctx.moveTo(-12, 14); ctx.lineTo(-16, 34 + leg); ctx.lineTo(-8, 30); ctx.lineTo(0, 36 - leg); ctx.lineTo(8, 29); ctx.lineTo(8, 14); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#17172d'; ctx.fillRect(-13, 34 + leg, 11, 8); ctx.fillRect(3, 34 - leg, 11, 8);
+  ctx.fillStyle = '#27233d'; ctx.fillRect(-12, 20, 24, 16);
+  ctx.fillStyle = '#f3edff'; ctx.beginPath(); ctx.moveTo(-5, 18); ctx.lineTo(0, 27); ctx.lineTo(5, 18); ctx.lineTo(2, 31); ctx.lineTo(-2, 31); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#dc294f'; ctx.fillRect(-3, 23, 6, 5);
+  ctx.fillStyle = '#e9d8ed'; ctx.fillRect(-14, 18, 5, 12); ctx.fillRect(9, 18, 5, 12);
+  ctx.fillStyle = '#f0d8c8'; ctx.fillRect(-10, 7, 20, 17);
+  ctx.fillStyle = '#191727';
+  ctx.fillRect(-11, 5, 22, 7); ctx.fillRect(-9, 2, 5, 9); ctx.fillRect(4, 2, 5, 9);
+  ctx.fillRect(-3, 9, 3, 4); ctx.fillRect(-8, 10, 3, 2); ctx.fillRect(4, 10, 3, 2);
+  ctx.fillStyle = '#f34e70'; ctx.fillRect(-7, 13, 3, 3); ctx.fillRect(4, 13, 3, 3);
+  ctx.fillStyle = '#23192c'; ctx.fillRect(-1, 17, 7, 2);
+  ctx.fillStyle = '#fff5f2'; ctx.beginPath(); ctx.moveTo(0, 17); ctx.lineTo(2, 22); ctx.lineTo(4, 17); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 
-function drawBullets() {
-  for (const bullet of state.bullets) {
-    ctx.fillStyle = bullet.color;
-    ctx.beginPath();
-    ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawEnemies() {
-  for (const enemy of state.enemies) {
-    ctx.save();
-    ctx.translate(enemy.x, enemy.y);
-    ctx.fillStyle = enemy.color;
-    ctx.beginPath();
-    ctx.moveTo(0, -enemy.radius);
-    ctx.lineTo(enemy.radius, 0);
-    ctx.lineTo(0, enemy.radius);
-    ctx.lineTo(-enemy.radius, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillRect(-2, -enemy.radius + 6, 4, 8);
-    ctx.restore();
-  }
-}
-
-function drawParticles() {
-  for (const particle of state.particles) {
-    const alpha = Math.max(0, particle.life / particle.maxLife);
-    ctx.fillStyle = particle.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
-    if (/^#/.test(particle.color)) {
-      ctx.fillStyle = particle.color + Math.round(alpha * 255).toString(16).padStart(2, '0');
-    }
-    ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
-  }
-}
-
-function drawBackground() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawStars();
-
-  ctx.strokeStyle = 'rgba(110, 168, 255, 0.18)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= canvas.width; x += 80) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= canvas.height; y += 80) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-}
-
-function drawHudDetails() {
-  if (!state.running) return;
-
-  ctx.fillStyle = 'rgba(15, 20, 36, 0.4)';
-  ctx.fillRect(18, 18, 180, 34);
-  ctx.fillStyle = '#d7f7ff';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillText(`Wave ${state.wave}`, 28, 42);
+function drawGoal() {
+  const x = 4180 - state.camera;
+  ctx.fillStyle = '#25243a';
+  ctx.fillRect(x, 300, 13, FLOOR_Y - 300);
+  ctx.fillRect(x + 92, 300, 13, FLOOR_Y - 300);
+  ctx.fillRect(x - 9, 285, 123, 17);
+  ctx.fillStyle = '#77728c';
+  ctx.fillRect(x - 12, 280, 129, 8);
+  ctx.fillStyle = '#20192c';
+  ctx.fillRect(x + 18, 322, 58, FLOOR_Y - 322);
+  ctx.fillStyle = '#d7bcff';
+  ctx.beginPath(); ctx.arc(x + 47, 352, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#756c85';
+  for (let i = 0; i < 3; i++) ctx.fillRect(x + 23 + i * 18, 386, 4, 40);
+  ctx.fillStyle = '#cf416d';
+  ctx.beginPath(); ctx.moveTo(x + 53, 300); ctx.lineTo(x + 96, 317); ctx.lineTo(x + 53, 334); ctx.closePath(); ctx.fill();
 }
 
 function render() {
-  drawBackground();
-  drawPlayer();
-  drawBullets();
-  drawEnemies();
-  drawParticles();
-  drawHudDetails();
+  drawSky();
+  drawPlatforms();
+  for (const coin of state.coinsOnMap) drawCoin(coin);
+  drawGoal();
+  for (const enemy of state.enemies) drawEnemy(enemy);
+  for (const p of state.particles) {
+    ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = p.color; ctx.fillRect(p.x - state.camera, p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+  drawHero();
+  // Progress ribbon makes the destination easy to spot.
+  ctx.fillStyle = 'rgba(9, 8, 24, .58)'; ctx.fillRect(20, 18, 180, 8);
+  ctx.fillStyle = '#c9a1ff'; ctx.fillRect(20, 18, 180 * Math.min(1, state.hero.x / 4180), 8);
 }
 
 let lastFrame = 0;
-function frame(timestamp) {
-  const dt = Math.min(0.032, (timestamp - (lastFrame || timestamp)) / 1000 || 0.016);
-  lastFrame = timestamp;
-
+function frame(now) {
+  const dt = Math.min(.033, (now - (lastFrame || now)) / 1000 || .016);
+  lastFrame = now;
   update(dt);
   render();
   requestAnimationFrame(frame);
 }
 
-function startButtonHandler() {
-  resetGame();
+function setControl(control, pressed) {
+  if (control === 'jump' && pressed && !input.jump) input.jumpQueued = true;
+  input[control] = pressed;
 }
 
-function setKeyState(code, isPressed) {
-  switch (code) {
-    case 'ArrowLeft':
-    case 'KeyA':
-      keys.left = isPressed;
-      break;
-    case 'ArrowRight':
-    case 'KeyD':
-      keys.right = isPressed;
-      break;
-    case 'Space':
-      keys.fire = isPressed;
-      if (isPressed) shoot();
-      break;
-    default:
-      break;
-  }
+function setInput(code, pressed) {
+  if (['ArrowLeft', 'KeyA'].includes(code)) setControl('left', pressed);
+  if (['ArrowRight', 'KeyD'].includes(code)) setControl('right', pressed);
+  if (['Space', 'ArrowUp', 'KeyW'].includes(code)) setControl('jump', pressed);
 }
 
-function bindInput() {
-  document.addEventListener('keydown', (event) => {
-    if (['ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyD'].includes(event.code)) {
-      event.preventDefault();
-    }
-    setKeyState(event.code, true);
-  });
+document.addEventListener('keydown', (event) => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) event.preventDefault();
+  setInput(event.code, true);
+});
+document.addEventListener('keyup', (event) => setInput(event.code, false));
+window.addEventListener('blur', () => {
+  input.left = input.right = input.jump = false;
+  input.jumpQueued = false;
+});
 
-  document.addEventListener('keyup', (event) => {
-    setKeyState(event.code, false);
-  });
-
-  canvas.addEventListener('pointermove', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-    mouse.active = true;
-  });
-
-  canvas.addEventListener('pointerdown', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-    mouse.active = true;
-    shoot();
-  });
-
-  canvas.addEventListener('pointerleave', () => {
-    mouse.active = false;
-  });
-
-  touchButtons.forEach((button) => {
-    const control = button.dataset.control;
-    const press = () => {
-      button.classList.add('active');
-      if (control === 'left') keys.left = true;
-      if (control === 'right') keys.right = true;
-      if (control === 'fire') {
-        keys.fire = true;
-        shoot();
-      }
-    };
-    const release = () => {
-      button.classList.remove('active');
-      if (control === 'left') keys.left = false;
-      if (control === 'right') keys.right = false;
-      if (control === 'fire') keys.fire = false;
-    };
-
-    button.addEventListener('pointerdown', press);
-    button.addEventListener('pointerup', release);
-    button.addEventListener('pointerleave', release);
-    button.addEventListener('pointercancel', release);
-  });
+for (const button of document.querySelectorAll('[data-control]')) {
+  const control = button.dataset.control;
+  const press = (event) => {
+    event.preventDefault();
+    button.classList.add('active');
+    setControl(control, true);
+    if (button.setPointerCapture && event.pointerId !== undefined) button.setPointerCapture(event.pointerId);
+  };
+  const release = () => { button.classList.remove('active'); setControl(control, false); };
+  button.addEventListener('pointerdown', press);
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', release);
+  button.addEventListener('lostpointercapture', release);
 }
-
-function init() {
-  setupStars();
-  updateHud();
-  bindInput();
-  startButton.addEventListener('click', startButtonHandler);
-  setOverlay('Starfall Defense', 'Use arrow keys or WASD to dodge! Fire with Space or the touch button.', 'Start Mission');
-  render();
-  requestAnimationFrame(frame);
-}
-
-init();
+startButton.addEventListener('click', startGame);
+resetLevel();
+updateHud();
+overlayShow('Moonlit Mayhem', 'Sneak through the haunted valley, grab moon coins, and reach the final gate before the spirits catch you.', 'Start the Run');
+render();
+requestAnimationFrame(frame);

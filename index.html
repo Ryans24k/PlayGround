@@ -3,38 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Starfall Defense</title>
+    <meta name="theme-color" content="#11152f" />
+    <title>Moonlit Mayhem</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="hud">
+        <div class="brand">🌙 <span>MOONLIT MAYHEM</span></div>
         <div class="stat"><span class="label">Score</span><span id="score">0</span></div>
-        <div class="stat"><span class="label">Lives</span><span id="lives">5</span></div>
-        <div class="stat"><span class="label">Wave</span><span id="wave">1</span></div>
+        <div class="stat"><span class="label">Coins</span><span id="coins">0</span></div>
+        <div class="stat"><span class="label">Lives</span><span id="lives">3</span></div>
         <div class="stat"><span class="label">Best</span><span id="best">0</span></div>
       </header>
 
       <main class="game-wrap">
-        <canvas id="gameCanvas" width="960" height="600" aria-label="Starfall Defense game"></canvas>
-
+        <canvas id="gameCanvas" width="960" height="600" aria-label="Moonlit Mayhem side-scrolling platform game"></canvas>
         <div id="overlay" class="overlay visible" aria-live="polite">
           <div class="panel">
-            <p class="eyebrow">Deep Space Defense</p>
-            <h1 id="title">Starfall Defense</h1>
-            <p id="message">Use arrow keys or WASD to dodge! Fire with Space or the button.</p>
-            <button id="startButton" type="button">Start Mission</button>
+            <p class="eyebrow">A midnight platform run</p>
+            <h1 id="title">Moonlit Mayhem</h1>
+            <p id="message">Sneak through the haunted valley, grab moon coins, and reach the final gate before the spirits catch you.</p>
+            <button id="startButton" type="button">Start the Run</button>
           </div>
         </div>
       </main>
 
       <div class="touch-controls" aria-label="Touch controls">
-        <button type="button" class="control left" data-control="left">◀</button>
-        <button type="button" class="control fire" data-control="fire">FIRE</button>
-        <button type="button" class="control right" data-control="right">▶</button>
+        <button type="button" class="control" data-control="left" aria-label="Move left">◀</button>
+        <button type="button" class="control" data-control="right" aria-label="Move right">▶</button>
+        <span class="control-spacer"></span>
+        <button type="button" class="control jump" data-control="jump" aria-label="Jump">JUMP ⤴</button>
       </div>
+      <p class="help">Move: <kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd>/<kbd>D</kbd> &nbsp; Jump twice: press <kbd>Space</kbd>, <kbd>↑</kbd>, or <kbd>W</kbd> again in midair</p>
     </div>
-
     <script src="script.js"></script>
   </body>
 </html>
