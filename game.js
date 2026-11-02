@@ -725,22 +725,49 @@ function drawPlayer() {
     roundedGradientRect(-width / 2, 0, width, length, width / 2, top, bottom);
     ctx.restore();
   };
+  const drawShoe = (px, py, angle, length, width, top, bottom) => {
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(angle);
+    ctx.fillStyle = bottom;
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.55, width * 0.18);
+    ctx.lineTo(length * 0.72, width * 0.2);
+    ctx.quadraticCurveTo(length, width * 0.2, length * 0.88, width * 0.62);
+    ctx.lineTo(-width * 0.52, width * 0.62);
+    ctx.quadraticCurveTo(-width * 0.82, width * 0.46, -width * 0.55, width * 0.18);
+    ctx.fill();
+    ctx.fillStyle = top;
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.62, -width * 0.28);
+    ctx.lineTo(length * 0.58, -width * 0.48);
+    ctx.quadraticCurveTo(length, -width * 0.42, length * 0.94, 0);
+    ctx.lineTo(length * 0.76, width * 0.24);
+    ctx.lineTo(-width * 0.46, width * 0.18);
+    ctx.quadraticCurveTo(-width * 0.8, 0, -width * 0.62, -width * 0.28);
+    ctx.fill();
+    ctx.restore();
+  };
 
-  // Legs drive in opposite arcs, with each boot lifting clear of the ground.
-  const farLegSwing = airborne ? 0.65 : -stride * 0.68 * runAmount;
-  const nearLegSwing = airborne ? -0.5 : stride * 0.68 * runAmount;
-  const farFootLift = moving ? Math.max(0, Math.sin(phase + Math.PI)) * 2.8 * runAmount : 0;
-  const nearFootLift = moving ? Math.max(0, Math.sin(phase)) * 2.8 * runAmount : 0;
-  const farLegX = -3 - stride * 2.2 * runAmount;
-  const nearLegX = 4 + stride * 2.2 * runAmount;
-  drawLimb(farLegX, 12, farLegSwing, 10, 5, '#3983dd', '#164c9d');
-  drawLimb(farLegX + Math.sin(phase + Math.PI) * 3.5 * runAmount, 19 - farFootLift, airborne ? 0.35 : farLegSwing * 1.15, 5, 7, '#c57545', '#63351f');
-  drawLimb(nearLegX, 11, nearLegSwing, 11, 6, '#55a5ff', '#1553b5');
-  drawLimb(nearLegX + Math.sin(phase) * 3.5 * runAmount + 2, 18 - nearFootLift, airborne ? -0.25 : nearLegSwing * 1.15, 5, 8, '#b9683d', '#48251d');
+  // Legs swing in a wide side-profile arc: one reaches forward as the other pushes back.
+  const legSwing = moving ? Math.sin(phase) * 1.25 * runAmount : 0;
+  const backLeg = airborne ? 0.9 : legSwing;
+  const frontLeg = airborne ? -0.65 : -legSwing;
+  const farLegX = -2.5 - Math.sin(phase) * 1.6 * runAmount;
+  const nearLegX = 2.5 + Math.sin(phase) * 1.6 * runAmount;
+  const farFootX = farLegX - Math.sin(backLeg) * 10;
+  const farFootY = 15 + Math.cos(backLeg) * 10;
+  const nearFootX = nearLegX - Math.sin(frontLeg) * 10;
+  const nearFootY = 14 + Math.cos(frontLeg) * 10;
+  drawLimb(farLegX, 13, backLeg, 10, 5, '#3983dd', '#164c9d');
+  drawShoe(farFootX, farFootY, backLeg * 0.16, 11, 5.5, '#d58d57', '#6f3b2d');
 
   // Back arm, torso, and the forward arm are separate layers for a little depth.
   drawLimb(-7, -4, armSwing, 12, 5, '#f2bd91', '#bd7958');
   roundedGradientRect(-9, -4, 17, 19, 5, '#5fb0ff', '#174d9d');
+  // Bring the front leg over the shirt so its forward/back swing stays readable.
+  drawLimb(nearLegX, 12, frontLeg, 10.5, 5.5, '#55a5ff', '#1553b5');
+  drawShoe(nearFootX, nearFootY, frontLeg * 0.16, 11, 6, '#bd6c45', '#4f2a20');
   ctx.fillStyle = 'rgba(215,237,255,0.58)';
   ctx.beginPath();
   ctx.moveTo(-5, -1);
