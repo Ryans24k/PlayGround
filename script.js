@@ -288,18 +288,54 @@ function drawSky() {
 }
 
 function drawPlatforms() {
+  const tileW = 32;
+  const tileH = 22;
   for (const p of platforms) {
     const sx = p.x - state.camera;
     if (sx + p.w < -20 || sx > W + 20) continue;
-    ctx.fillStyle = p.y === FLOOR_Y ? '#353044' : '#48405a';
+
+    const grassH = p.y === FLOOR_Y ? 12 : 8;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(sx, p.y, p.w, p.h);
+    ctx.clip();
+
+    // Chunky soil blocks, staggered like old-school platformer bricks.
+    ctx.fillStyle = '#30252c';
     ctx.fillRect(sx, p.y, p.w, p.h);
-    ctx.fillStyle = '#79805b';
-    ctx.fillRect(sx, p.y, p.w, p.y === FLOOR_Y ? 11 : 7);
-    ctx.fillStyle = 'rgba(196, 177, 229, .18)';
-    for (let bx = sx + 10; bx < sx + p.w - 8; bx += 42) {
-      ctx.fillRect(bx, p.y + 26, 22, 3);
-      if (p.y !== FLOOR_Y) ctx.fillRect(bx + 8, p.y + 12, 3, 5);
+    const firstRow = p.y + grassH;
+    const firstTileX = Math.floor(p.x / tileW) * tileW;
+    for (let rowY = firstRow, row = 0; rowY < p.y + p.h; rowY += tileH, row++) {
+      const stagger = row % 2 ? tileW / 2 : 0;
+      for (let worldX = firstTileX - tileW + stagger; worldX < p.x + p.w; worldX += tileW) {
+        const tileX = worldX - state.camera;
+        const variation = (Math.floor(worldX / tileW) + row * 3) % 3;
+        ctx.fillStyle = ['#594039', '#63463a', '#503a37'][((variation % 3) + 3) % 3];
+        ctx.fillRect(tileX + 1, rowY + 1, tileW - 2, tileH - 2);
+        ctx.strokeStyle = '#30252c';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(tileX + 1, rowY + 1, tileW - 2, tileH - 2);
+        ctx.fillStyle = 'rgba(221, 158, 105, .2)';
+        ctx.fillRect(tileX + 4, rowY + 3, tileW - 9, 2);
+        ctx.fillStyle = 'rgba(24, 21, 31, .3)';
+        ctx.fillRect(tileX + tileW - 6, rowY + 5, 2, tileH - 9);
+      }
     }
+
+    // A soft mossy cap with little squared-off tufts.
+    ctx.fillStyle = '#52613f';
+    ctx.fillRect(sx, p.y + 3, p.w, grassH - 3);
+    ctx.fillStyle = '#89945a';
+    ctx.fillRect(sx, p.y + 2, p.w, 3);
+    ctx.fillStyle = '#b0aa68';
+    ctx.fillRect(sx, p.y, p.w, 2);
+    ctx.fillStyle = '#71834b';
+    for (let worldX = Math.floor(p.x / 24) * 24; worldX < p.x + p.w; worldX += 24) {
+      const grassX = worldX - state.camera + ((Math.floor(worldX / 24) % 2) * 5);
+      ctx.fillRect(grassX, p.y, 3, 4);
+      ctx.fillRect(grassX + 4, p.y + 1, 3, 3);
+    }
+    ctx.restore();
   }
 }
 
