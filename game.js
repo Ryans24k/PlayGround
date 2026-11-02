@@ -297,45 +297,133 @@ function roundedGradientRect(x, y, w, h, r, topColor, bottomColor) {
 
 function drawBackground() {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#68c9ff');
-  sky.addColorStop(0.68, '#d2f3ff');
-  sky.addColorStop(1, '#f4fbdb');
+  sky.addColorStop(0, '#3988d9');
+  sky.addColorStop(0.38, '#72c7f1');
+  sky.addColorStop(0.76, '#c7eff0');
+  sky.addColorStop(1, '#f5f5ce');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  const shimmer = (Math.sin(elapsed * 0.8) + 1) * 0.5;
-  ctx.fillStyle = `rgba(255,255,255,${0.2 + shimmer * 0.2})`;
-  ctx.fillRect(0, 0, W, H * 0.42);
+  // Warm sun glow and a slow, subtle atmospheric pulse.
+  const sunX = 755 - cameraX * 0.035;
+  const sunY = 102;
+  const sunGlow = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 190);
+  sunGlow.addColorStop(0, 'rgba(255,246,190,0.76)');
+  sunGlow.addColorStop(0.28, 'rgba(255,238,172,0.26)');
+  sunGlow.addColorStop(1, 'rgba(255,238,172,0)');
+  ctx.fillStyle = sunGlow;
+  ctx.fillRect(sunX - 190, sunY - 190, 380, 380);
+  ctx.fillStyle = '#fff4bd';
+  ctx.beginPath();
+  ctx.arc(sunX, sunY, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.58)';
+  ctx.beginPath();
+  ctx.ellipse(sunX - 6, sunY - 8, 10, 4, -0.5, 0, Math.PI * 2);
+  ctx.fill();
 
-  for (let i = 0; i < 7; i += 1) {
-    const x = i * 190 - (cameraX * 0.2 % 190) - 70;
-    ctx.fillStyle = i % 2 ? '#a4e5a0' : '#8bdc9a';
+  // Distant mountain silhouettes create scale behind the playable valley.
+  const mountainLayers = [
+    { spacing: 420, parallax: 0.12, base: 377, color: '#91c9d4', peak: 100 },
+    { spacing: 520, parallax: 0.2, base: 398, color: '#72b6ba', peak: 77 },
+  ];
+  for (const layer of mountainLayers) {
+    const drift = (cameraX * layer.parallax) % layer.spacing;
+    for (let i = -2; i < 5; i += 1) {
+      const x = i * layer.spacing - drift;
+      const peakX = x + layer.spacing * (0.36 + (i % 2) * 0.12);
+      const peakY = layer.base - layer.peak;
+      ctx.fillStyle = layer.color;
+      ctx.beginPath();
+      ctx.moveTo(x - 20, layer.base);
+      ctx.lineTo(peakX, peakY);
+      ctx.lineTo(x + layer.spacing * 0.68, layer.base);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(248,255,239,0.78)';
+      ctx.beginPath();
+      ctx.moveTo(peakX, peakY);
+      ctx.lineTo(peakX - 27, peakY + 36);
+      ctx.lineTo(peakX - 5, peakY + 28);
+      ctx.lineTo(peakX + 15, peakY + 43);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Rolling hills at two parallax speeds soften the mountain horizon.
+  for (let layer = 0; layer < 2; layer += 1) {
+    const spacing = layer ? 280 : 360;
+    const drift = (cameraX * (layer ? 0.34 : 0.25)) % spacing;
+    ctx.fillStyle = layer ? '#8bd28c' : '#a9df9c';
     ctx.beginPath();
-    ctx.ellipse(x + 95, 424, 145, 105, 0, Math.PI, 0);
+    ctx.moveTo(-spacing, 444);
+    for (let i = -2; i < 7; i += 1) {
+      const x = i * spacing - drift;
+      const peak = 365 + ((i + layer) % 3) * 17;
+      ctx.quadraticCurveTo(x + spacing * 0.48, peak, x + spacing, 435);
+    }
+    ctx.lineTo(W + spacing, H);
+    ctx.lineTo(-spacing, H);
+    ctx.closePath();
     ctx.fill();
   }
-  for (let i = 0; i < 9; i += 1) {
-    const x = i * 155 - (cameraX * 0.42 % 155) - 40;
-    const y = 95 + (i % 3) * 52;
-    drawCloud(x, y, 0.8 + (i % 2) * 0.18);
+
+  // Sunlit clouds float at different depths.
+  for (let i = 0; i < 8; i += 1) {
+    const x = i * 175 - (cameraX * 0.16 % 175) - 55;
+    const y = 72 + (i % 3) * 47;
+    drawCloud(x, y, 0.78 + (i % 2) * 0.2);
   }
-  for (let i = 0; i < 14; i += 1) {
-    const x = i * 190 - (cameraX * 0.55 % 190) + 35;
-    ctx.fillStyle = '#79583e';
-    ctx.fillRect(x, 405, 12, 45);
-    ctx.fillStyle = '#38ad64';
+
+  // A soft tree line anchors the playable space without competing with it.
+  for (let i = 0; i < 16; i += 1) {
+    const spacing = 125;
+    const x = i * spacing - (cameraX * 0.62 % spacing) - 30;
+    const height = 28 + (i % 4) * 8;
+    const crownY = 416 - height;
+    ctx.fillStyle = 'rgba(92,75,60,0.72)';
+    ctx.fillRect(x - 3, crownY + 20, 7, 40);
+    const crown = ctx.createLinearGradient(0, crownY, 0, crownY + 46);
+    crown.addColorStop(0, i % 2 ? '#4eae6a' : '#55b773');
+    crown.addColorStop(1, '#32885c');
+    ctx.fillStyle = crown;
     ctx.beginPath();
-    ctx.arc(x + 6, 398, 26, 0, Math.PI * 2);
+    ctx.arc(x, crownY + 12, 22, Math.PI, 0);
+    ctx.arc(x + 17, crownY + 25, 17, Math.PI * 1.05, Math.PI * 0.05);
+    ctx.arc(x - 17, crownY + 27, 17, Math.PI * 0.95, -0.05);
+    ctx.closePath();
     ctx.fill();
+    ctx.fillStyle = 'rgba(207,255,174,0.25)';
     ctx.beginPath();
-    ctx.arc(x - 9, 410, 18, 0, Math.PI * 2);
-    ctx.arc(x + 21, 410, 18, 0, Math.PI * 2);
+    ctx.arc(x - 7, crownY + 8, 7, Math.PI, 0);
+    ctx.fill();
+  }
+
+  // Tiny drifting pollen catches the light and adds a sense of air and depth.
+  for (let i = 0; i < 18; i += 1) {
+    const drift = (elapsed * (7 + i % 4) + i * 73) % (W + 20);
+    const x = (drift - cameraX * 0.08 + W) % W;
+    const y = 190 + (i * 47 % 220) + Math.sin(elapsed * 1.3 + i) * 5;
+    ctx.fillStyle = `rgba(255,250,195,${0.22 + (i % 3) * 0.1})`;
+    ctx.beginPath();
+    ctx.arc(x, y, i % 4 === 0 ? 1.8 : 1.1, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
 function drawCloud(x, y, s) {
-  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.save();
+  ctx.translate(0, Math.sin(elapsed * 0.5 + x * 0.01) * 2);
+  ctx.fillStyle = 'rgba(89,151,188,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(x + 44 * s, y + 25 * s, 43 * s, 12 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const cloud = ctx.createLinearGradient(0, y, 0, y + 28 * s);
+  cloud.addColorStop(0, 'rgba(255,255,255,0.98)');
+  cloud.addColorStop(0.65, 'rgba(250,253,248,0.94)');
+  cloud.addColorStop(1, 'rgba(214,237,240,0.9)');
+  ctx.fillStyle = cloud;
   ctx.beginPath();
   ctx.arc(x + 22 * s, y + 16 * s, 17 * s, Math.PI, 0);
   ctx.arc(x + 43 * s, y + 10 * s, 23 * s, Math.PI, 0);
@@ -344,6 +432,7 @@ function drawCloud(x, y, s) {
   ctx.lineTo(x + 7 * s, y + 22 * s);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
 }
 
 function drawWorld() {
@@ -373,10 +462,24 @@ function drawWorld() {
       ctx.fillStyle = 'rgba(255,255,255,0.28)';
       ctx.fillRect(x, p.y, p.w, 2);
 
-      ctx.fillStyle = 'rgba(74,38,34,0.55)';
-      for (let bx = x + 12; bx < x + p.w; bx += 44) {
-        ctx.fillRect(bx, p.y + 34, 3, 25);
-        ctx.fillRect(bx + 20, p.y + 69, 3, 24);
+      // Fine strata and scattered stones give the cut soil a layered, earthy face.
+      ctx.fillStyle = 'rgba(255,190,115,0.16)';
+      ctx.fillRect(x, p.y + 24, p.w, 2);
+      ctx.fillRect(x, p.y + 61, p.w, 1);
+      ctx.fillStyle = 'rgba(74,38,34,0.48)';
+      for (let bx = p.x + 12; bx < p.x + p.w; bx += 44) {
+        const sx = bx - cameraX;
+        ctx.fillRect(sx, p.y + 34, 3, 25);
+        ctx.fillRect(sx + 20, p.y + 69, 3, 24);
+      }
+      for (let bx = Math.ceil(p.x / 71) * 71 + 29; bx < p.x + p.w; bx += 71) {
+        const sx = bx - cameraX;
+        ctx.fillStyle = 'rgba(87,43,33,0.42)';
+        ctx.beginPath();
+        ctx.ellipse(sx, p.y + 44 + (bx % 3) * 5, 5 + bx % 4, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,190,115,0.28)';
+        ctx.fillRect(sx - 3, p.y + 42 + (bx % 3) * 5, 4, 1);
       }
     } else {
       const dirt = ctx.createLinearGradient(0, p.y + 5, 0, p.y + p.h);
@@ -694,14 +797,52 @@ function drawPlayer() {
 }
 
 function drawDecor() {
-  // Tiny flowers add foreground color without hiding gameplay.
-  for (let i = 0; i < 35; i += 1) {
-    const x = i * 67 - cameraX;
-    if (x < -10 || x > W + 10) continue;
-    const onGround = platforms.some(p => p.y === GROUND_Y && x >= p.x && x <= p.x + p.w);
-    if (!onGround) continue;
-    ctx.fillStyle = '#fff'; ctx.fillRect(x, GROUND_Y - 7, 3, 3);
-    ctx.fillStyle = '#ffdb4d'; ctx.fillRect(x + 1, GROUND_Y - 6, 2, 2);
+  const onGround = worldX => platforms.some(p => p.y === GROUND_Y && worldX >= p.x + 8 && worldX <= p.x + p.w - 8);
+
+  // Short, world-anchored grass tufts break up the long platform edges without
+  // obscuring the character's feet or the readable collision silhouette.
+  for (let worldX = 18; worldX < LEVEL_WIDTH; worldX += 29) {
+    if (!onGround(worldX)) continue;
+    const x = worldX - cameraX;
+    if (x < -12 || x > W + 12) continue;
+    const height = 4 + (worldX % 4);
+    ctx.strokeStyle = worldX % 2 ? '#359c4d' : '#42b752';
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 3, GROUND_Y - 1);
+    ctx.lineTo(x - 4, GROUND_Y - height);
+    ctx.moveTo(x, GROUND_Y);
+    ctx.lineTo(x + (worldX % 3) - 1, GROUND_Y - height - 2);
+    ctx.moveTo(x + 3, GROUND_Y - 1);
+    ctx.lineTo(x + 5, GROUND_Y - height + 1);
+    ctx.stroke();
+  }
+
+  // Small, varied blossoms add color at a calmer rhythm than the grass.
+  for (let worldX = 42; worldX < LEVEL_WIDTH; worldX += 103) {
+    if (!onGround(worldX)) continue;
+    const x = worldX - cameraX;
+    if (x < -12 || x > W + 12) continue;
+    const flowerY = GROUND_Y - 9 - worldX % 3;
+    const petal = worldX % 2 ? '#fff4d8' : '#ffd8ef';
+    ctx.strokeStyle = '#358e48';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y - 1);
+    ctx.lineTo(x, flowerY + 2);
+    ctx.stroke();
+    ctx.fillStyle = petal;
+    for (let petalIndex = 0; petalIndex < 4; petalIndex += 1) {
+      const angle = petalIndex * Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(angle) * 2.4, flowerY + Math.sin(angle) * 2.4, 1.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffc846';
+    ctx.beginPath();
+    ctx.arc(x, flowerY, 1.4, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
