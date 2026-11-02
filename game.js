@@ -19,13 +19,17 @@ const CHECKPOINT_X = 1210;
 const TARGET_COINS = 12;
 const ENEMY_SQUISH_DURATION = 0.46;
 const PIPES = [
-  { x: 315, w: 58, h: 74 },
+  { x: 315, w: 58, h: 74, secret: true },
   { x: 920, w: 64, h: 104 },
   { x: 1430, w: 62, h: 82 },
   { x: 1870, w: 68, h: 112 },
 ].map(pipe => ({ ...pipe, y: GROUND_Y - pipe.h }));
 const keys = new Set();
 const touchDirs = new Set();
+let currentLevel = '1-1';
+let enteringPipe = null;
+let pipeEntryTimer = 0;
+const PIPE_ENTRY_DURATION = 1.05;
 let player;
 let platforms = [];
 let coins = [];
@@ -42,7 +46,41 @@ let cameraShake = 0;
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+const activePipes = () => currentLevel === '1-1' ? PIPES : [];
+
 function buildLevel() {
+  if (currentLevel === '2-1') {
+    platforms = [
+      { x: 0, y: GROUND_Y, w: 410, h: 100 },
+      { x: 500, y: GROUND_Y, w: 450, h: 100 },
+      { x: 1060, y: GROUND_Y, w: 470, h: 100 },
+      { x: 1640, y: GROUND_Y, w: 560, h: 100 },
+      { x: 180, y: 410, w: 145, h: 18 },
+      { x: 390, y: 345, w: 155, h: 18 },
+      { x: 650, y: 400, w: 145, h: 18 },
+      { x: 850, y: 330, w: 150, h: 18 },
+      { x: 1120, y: 405, w: 150, h: 18 },
+      { x: 1380, y: 345, w: 150, h: 18 },
+      { x: 1580, y: 400, w: 145, h: 18 },
+      { x: 1810, y: 340, w: 150, h: 18 },
+      { x: 1985, y: 285, w: 145, h: 18 },
+    ];
+    const rows = [
+      [100, 464], [240, 366], [430, 302], [490, 302], [570, 464], [690, 356],
+      [750, 356], [900, 286], [960, 286], [1030, 464], [1155, 360], [1215, 360],
+      [1400, 300], [1460, 300], [1580, 464], [1745, 464], [1845, 295], [1905, 295],
+      [2025, 240], [2110, 464],
+    ];
+    coins = rows.map(([x, y]) => ({ x, y, taken: false, phase: Math.random() * Math.PI * 2 }));
+    enemies = [
+      { type: 'turtle', x: 285, y: GROUND_Y - 30, w: 40, h: 30, min: 210, max: 370, dir: 1, speed: 42, alive: true, squishTimer: 0 },
+      { type: 'turtle', x: 690, y: GROUND_Y - 30, w: 40, h: 30, min: 590, max: 825, dir: -1, speed: 48, alive: true, squishTimer: 0 },
+      { type: 'turtle', x: 1215, y: GROUND_Y - 30, w: 40, h: 30, min: 1090, max: 1350, dir: 1, speed: 44, alive: true, squishTimer: 0 },
+      { type: 'turtle', x: 1815, y: GROUND_Y - 30, w: 40, h: 30, min: 1690, max: 1940, dir: -1, speed: 52, alive: true, squishTimer: 0 },
+    ];
+    return;
+  }
+
   platforms = [
     { x: 0, y: GROUND_Y, w: 530, h: 100 },
     { x: 620, y: GROUND_Y, w: 475, h: 100 },
@@ -58,14 +96,13 @@ function buildLevel() {
     { x: 1740, y: 350, w: 150, h: 18 },
     { x: 1940, y: 290, w: 145, h: 18 },
   ];
-  coins = [];
   const rows = [
     [115, 464], [220, 372], [440, 306], [500, 306], [565, 440], [700, 365],
     [760, 365], [900, 296], [960, 296], [1050, 464], [1150, 464], [1350, 306],
     [1410, 306], [1490, 464], [1570, 360], [1765, 306], [1825, 306], [1980, 246],
     [2040, 246], [2120, 464],
   ];
-  rows.forEach(([x, y]) => coins.push({ x, y, taken: false, phase: Math.random() * Math.PI * 2 }));
+  coins = rows.map(([x, y]) => ({ x, y, taken: false, phase: Math.random() * Math.PI * 2 }));
   enemies = [
     { x: 340, y: GROUND_Y - 28, w: 34, h: 28, min: 315, max: 380, dir: 1, speed: 50, alive: true, squishTimer: 0 },
     { x: 740, y: GROUND_Y - 28, w: 34, h: 28, min: 655, max: 805, dir: -1, speed: 56, alive: true, squishTimer: 0 },
@@ -75,6 +112,9 @@ function buildLevel() {
 }
 
 function resetGame() {
+  currentLevel = '1-1';
+  enteringPipe = null;
+  pipeEntryTimer = 0;
   buildLevel();
   player = { x: 62, y: GROUND_Y - 48, w: 30, h: 46, vx: 0, vy: 0, grounded: true, coyote: 0.12, jumpBuffer: 0, facing: 1, lives: 3, coins: 0, invulnerable: 0, walk: 0, ducking: false, duckBlend: 0, checkpoint: 62, checkpointActive: false };
   cameraX = 0;
@@ -86,7 +126,7 @@ function resetGame() {
 
 function updateHUD() {
   scoreValue.textContent = String(player ? player.coins : 0);
-  waveValue.textContent = '1-1';
+  waveValue.textContent = currentLevel;
   if (player) {
     healthFill.style.width = `${(player.lives / 3) * 100}%`;
     healthFill.setAttribute('aria-valuenow', String(player.lives));
@@ -111,6 +151,26 @@ function startGame() {
 function setMessage(text) {
   message = text;
   messageTimer = 1.8;
+}
+
+function enterWorld2() {
+  const savedCoins = player.coins;
+  const savedLives = player.lives;
+  currentLevel = '2-1';
+  buildLevel();
+  player = {
+    x: 62, y: GROUND_Y - 46, w: 30, h: 46, vx: 0, vy: 0,
+    grounded: true, coyote: 0.12, jumpBuffer: 0, facing: 1,
+    lives: savedLives, coins: savedCoins, invulnerable: 0, walk: 0,
+    ducking: false, duckBlend: 0, checkpoint: 62, checkpointActive: false,
+  };
+  enteringPipe = null;
+  pipeEntryTimer = 0;
+  cameraX = 0;
+  particles = [];
+  gameState = 'playing';
+  setMessage('Welcome to World 2-1: Turtle Cavern!');
+  updateHUD();
 }
 
 function burst(x, y, color, amount = 9) {
@@ -181,7 +241,7 @@ function movePlayer(dt) {
   player.x += player.vx * dt;
   player.x = clamp(player.x, 0, LEVEL_WIDTH - player.w);
 
-  for (const pipe of PIPES) {
+  for (const pipe of activePipes()) {
     const overlapsVertically = player.y < pipe.y + pipe.h && player.y + player.h > pipe.y;
     if (overlapsVertically && player.x + player.w > pipe.x && player.x < pipe.x + pipe.w) {
       if (player.vx > 0) player.x = pipe.x - player.w;
@@ -194,7 +254,7 @@ function movePlayer(dt) {
   player.grounded = false;
 
   if (player.vy >= 0) {
-    for (const p of [...platforms, ...PIPES]) {
+    for (const p of [...platforms, ...activePipes()]) {
       const crossedTop = oldY + player.h <= p.y + 2 && player.y + player.h >= p.y;
       if (crossedTop && player.x + player.w > p.x && player.x < p.x + p.w) {
         player.y = p.y - player.h;
@@ -203,7 +263,7 @@ function movePlayer(dt) {
       }
     }
   } else {
-    for (const pipe of PIPES) {
+    for (const pipe of activePipes()) {
       const pipeBottom = pipe.y + pipe.h;
       const hitUnderside = oldY >= pipeBottom - 2 && player.y <= pipeBottom;
       if (hitUnderside && player.x + player.w > pipe.x && player.x < pipe.x + pipe.w) {
@@ -222,7 +282,34 @@ function movePlayer(dt) {
 
 function update(dt) {
   elapsed += dt;
+  if (gameState === 'entering') {
+    pipeEntryTimer += dt;
+    const progress = clamp(pipeEntryTimer / PIPE_ENTRY_DURATION, 0, 1);
+    player.pipeEntry = progress;
+    player.y = enteringPipe.y - player.h + progress * (enteringPipe.h + player.h + 8);
+    cameraX = clamp(player.x - W * 0.36, 0, LEVEL_WIDTH - W);
+    if (progress >= 1) enterWorld2();
+    return;
+  }
+
   movePlayer(dt);
+  if (currentLevel === '1-1' && player.ducking && player.grounded) {
+    const entrance = PIPES.find(pipe => pipe.secret
+      && Math.abs(player.x + player.w / 2 - (pipe.x + pipe.w / 2)) < 9
+      && Math.abs(player.y + player.h - pipe.y) < 3);
+    if (entrance) {
+      enteringPipe = entrance;
+      pipeEntryTimer = 0;
+      player.pipeEntry = 0;
+      player.vx = 0;
+      player.vy = 0;
+      player.ducking = true;
+      player.duckBlend = 1;
+      gameState = 'entering';
+      setMessage('Secret entrance discovered!');
+      return;
+    }
+  }
   cameraX = clamp(player.x - W * 0.36, 0, LEVEL_WIDTH - W);
   if (!player.checkpointActive && player.x + player.w >= CHECKPOINT_X) {
     player.checkpoint = CHECKPOINT_X + 18;
@@ -303,6 +390,54 @@ function roundedGradientRect(x, y, w, h, r, topColor, bottomColor) {
 }
 
 function drawBackground() {
+  if (currentLevel === '2-1') {
+    const cavern = ctx.createLinearGradient(0, 0, 0, H);
+    cavern.addColorStop(0, '#081426');
+    cavern.addColorStop(0.52, '#102642');
+    cavern.addColorStop(1, '#1b3450');
+    ctx.fillStyle = cavern;
+    ctx.fillRect(0, 0, W, H);
+
+    const glow = ctx.createRadialGradient(W * 0.53, 300, 30, W * 0.53, 300, 440);
+    glow.addColorStop(0, 'rgba(57,151,179,0.2)');
+    glow.addColorStop(1, 'rgba(27,52,80,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Jagged cave ceiling and distant mineral seams establish the underground route.
+    ctx.fillStyle = '#101d31';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(W, 0);
+    for (let x = W; x >= 0; x -= 80) {
+      const point = Math.sin((x + cameraX * 0.12) * 0.018) * 12;
+      ctx.lineTo(x, 58 + point);
+      ctx.lineTo(x - 24, 27 + point);
+    }
+    ctx.closePath();
+    ctx.fill();
+    for (let i = 0; i < 13; i += 1) {
+      const x = ((i * 97 - cameraX * 0.18) % (W + 100) + W + 100) % (W + 100) - 30;
+      const length = 28 + (i * 37 % 52);
+      ctx.fillStyle = i % 3 === 0 ? '#25374b' : '#1a2c42';
+      ctx.beginPath();
+      ctx.moveTo(x - 18, 45);
+      ctx.lineTo(x, 45 + length);
+      ctx.lineTo(x + 18, 45);
+      ctx.closePath();
+      ctx.fill();
+    }
+    for (let i = 0; i < 9; i += 1) {
+      const x = (i * 131 - cameraX * 0.08) % (W + 120) - 40;
+      const y = 110 + (i * 43 % 215);
+      ctx.fillStyle = `rgba(119,226,223,${0.25 + (i % 3) * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + i % 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
+
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#3988d9');
   sky.addColorStop(0.38, '#72c7f1');
@@ -443,16 +578,72 @@ function drawCloud(x, y, s) {
 }
 
 function drawWorld() {
-  for (const pit of [[530, 90], [1095, 85], [1600, 100]]) {
+  const underground = currentLevel === '2-1';
+  const pits = underground ? [[410, 90], [950, 110], [1530, 110]] : [[530, 90], [1095, 85], [1600, 100]];
+  for (const pit of pits) {
     const x = pit[0] - cameraX;
-    ctx.fillStyle = '#71d5ef';
+    ctx.fillStyle = underground ? '#07101d' : '#71d5ef';
     ctx.fillRect(x, GROUND_Y, pit[1], 40);
-    ctx.fillStyle = '#438fc5';
+    ctx.fillStyle = underground ? '#132b40' : '#438fc5';
     ctx.fillRect(x, GROUND_Y + 38, pit[1], 55);
+    if (underground) {
+      ctx.fillStyle = 'rgba(86,222,215,0.22)';
+      ctx.fillRect(x + 10, GROUND_Y + 45, pit[1] - 20, 2);
+      ctx.fillStyle = 'rgba(4,10,20,0.65)';
+      for (let ledge = x + 12; ledge < x + pit[1] - 8; ledge += 24) {
+        ctx.fillRect(ledge, GROUND_Y + 52 + (ledge % 3) * 4, 5, 2);
+      }
+    }
   }
   for (const p of platforms) {
     const x = p.x - cameraX;
     if (x + p.w < -10 || x > W + 10) continue;
+    if (underground) {
+      if (p.y === GROUND_Y) {
+        const stone = ctx.createLinearGradient(0, p.y + 12, 0, p.y + p.h);
+        stone.addColorStop(0, '#31475a');
+        stone.addColorStop(1, '#142333');
+        ctx.fillStyle = stone;
+        ctx.fillRect(x, p.y, p.w, p.h);
+        ctx.fillStyle = '#557b83';
+        ctx.fillRect(x, p.y, p.w, 12);
+        ctx.fillStyle = 'rgba(132,225,211,0.52)';
+        ctx.fillRect(x, p.y, p.w, 2);
+        ctx.fillStyle = 'rgba(5,15,27,0.58)';
+        for (let seam = x + 24; seam < x + p.w; seam += 58) {
+          ctx.fillRect(seam, p.y + 22, 3, 26);
+          ctx.fillRect(seam - 19, p.y + 58, 3, 27);
+        }
+        ctx.fillStyle = 'rgba(116,164,168,0.28)';
+        for (let stoneX = x + 14; stoneX < x + p.w - 8; stoneX += 73) {
+          ctx.beginPath();
+          ctx.ellipse(stoneX, p.y + 38 + (stoneX % 19), 7, 3, -0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        const rock = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        rock.addColorStop(0, '#526b78');
+        rock.addColorStop(0.22, '#344c60');
+        rock.addColorStop(1, '#192b40');
+        ctx.fillStyle = rock;
+        ctx.fillRect(x, p.y + 5, p.w, p.h - 5);
+        ctx.fillStyle = '#74a59b';
+        ctx.fillRect(x, p.y, p.w, 6);
+        ctx.fillStyle = 'rgba(190,255,225,0.42)';
+        ctx.fillRect(x + 2, p.y, p.w - 4, 1);
+        ctx.fillStyle = 'rgba(8,19,32,0.58)';
+        for (let seam = x + 28; seam < x + p.w; seam += 56) ctx.fillRect(seam, p.y + 8, 3, p.h - 10);
+        ctx.fillStyle = 'rgba(84,224,208,0.7)';
+        for (let crystal = x + 15; crystal < x + p.w - 12; crystal += 91) {
+          ctx.beginPath();
+          ctx.moveTo(crystal, p.y + 4);
+          ctx.lineTo(crystal + 4, p.y + 11);
+          ctx.lineTo(crystal + 8, p.y + 4);
+          ctx.fill();
+        }
+      }
+      continue;
+    }
     if (p.y === GROUND_Y) {
       const soil = ctx.createLinearGradient(0, p.y + 14, 0, p.y + p.h);
       soil.addColorStop(0, '#b96738');
@@ -510,7 +701,7 @@ function drawWorld() {
       for (let bx = x + 12; bx < x + p.w; bx += 50) ctx.fillRect(bx, p.y + 9, 3, 3);
     }
   }
-  for (const pipe of PIPES) {
+  for (const pipe of activePipes()) {
     const x = pipe.x - cameraX;
     const y = pipe.y;
     const body = ctx.createLinearGradient(x + 7, 0, x + pipe.w - 7, 0);
@@ -635,8 +826,68 @@ function drawEnemy(enemy) {
 
   ctx.fillStyle = 'rgba(58,38,28,0.2)';
   ctx.beginPath();
-  ctx.ellipse(x + enemy.w / 2, GROUND_Y - 1, 18, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + enemy.w / 2, enemy.y + enemy.h + 1, enemy.w * 0.42, 4, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  if (enemy.type === 'turtle') {
+    const facing = enemy.dir >= 0 ? 1 : -1;
+    const centerX = x + enemy.w / 2;
+    const shellY = enemy.y + 17 + bounce;
+    const shell = ctx.createLinearGradient(0, enemy.y + 3 + bounce, 0, enemy.y + 27 + bounce);
+    shell.addColorStop(0, '#9de56b');
+    shell.addColorStop(0.28, '#4eae52');
+    shell.addColorStop(1, '#236345');
+    ctx.fillStyle = '#173f35';
+    ctx.beginPath();
+    ctx.ellipse(centerX, shellY, 17, 13, 0, Math.PI, Math.PI * 2);
+    ctx.lineTo(centerX + 16, shellY + 2);
+    ctx.quadraticCurveTo(centerX, shellY + 8, centerX - 16, shellY + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = shell;
+    ctx.beginPath();
+    ctx.ellipse(centerX, shellY - 1, 14, 11, 0, Math.PI, Math.PI * 2);
+    ctx.lineTo(centerX + 13, shellY + 1);
+    ctx.quadraticCurveTo(centerX, shellY + 6, centerX - 13, shellY + 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(21,83,54,0.88)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX, shellY - 11);
+    ctx.lineTo(centerX, shellY + 3);
+    ctx.moveTo(centerX - 10, shellY - 4);
+    ctx.lineTo(centerX - 5, shellY + 1);
+    ctx.moveTo(centerX + 10, shellY - 4);
+    ctx.lineTo(centerX + 5, shellY + 1);
+    ctx.stroke();
+
+    ctx.fillStyle = '#438e4a';
+    for (const footX of [x + 8, x + enemy.w - 8]) {
+      ctx.beginPath();
+      ctx.ellipse(footX, enemy.y + 27 + bounce, 7, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const headX = centerX + facing * 13;
+    ctx.fillStyle = '#75c957';
+    ctx.beginPath();
+    ctx.ellipse(headX, enemy.y + 14 + bounce, 8, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff8d8';
+    ctx.beginPath();
+    ctx.ellipse(headX + facing * 2, enemy.y + 11 + bounce, 2.4, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#18352d';
+    ctx.beginPath();
+    ctx.arc(headX + facing * 2.8, enemy.y + 12 + bounce, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#b7eb75';
+    ctx.beginPath();
+    ctx.arc(headX + facing * 7, enemy.y + 16 + bounce, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
 
   const body = ctx.createRadialGradient(x + 12, enemy.y + 8 + bounce, 2, x + 17, enemy.y + 17 + bounce, 20);
   body.addColorStop(0, '#e7ac64');
@@ -858,6 +1109,7 @@ function drawPlayer() {
 }
 
 function drawDecor() {
+  if (currentLevel === '2-1') return;
   const onGround = worldX => platforms.some(p => p.y === GROUND_Y && worldX >= p.x + 8 && worldX <= p.x + p.w - 8);
 
   // Short, world-anchored grass tufts break up the long platform edges without
@@ -916,6 +1168,21 @@ function draw() {
   drawCoins();
   enemies.forEach(drawEnemy);
   drawPlayer();
+  if (gameState === 'entering' && enteringPipe) {
+    const pipeX = enteringPipe.x - cameraX;
+    const lip = ctx.createLinearGradient(pipeX, enteringPipe.y, pipeX, enteringPipe.y + 16);
+    lip.addColorStop(0, '#66f28a');
+    lip.addColorStop(0.42, '#31d665');
+    lip.addColorStop(1, '#108743');
+    ctx.fillStyle = lip;
+    ctx.fillRect(pipeX, enteringPipe.y, enteringPipe.w, 16);
+    ctx.fillStyle = '#07552f';
+    ctx.beginPath();
+    ctx.ellipse(pipeX + enteringPipe.w / 2, enteringPipe.y + 6, enteringPipe.w * 0.34, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.42)';
+    ctx.fillRect(pipeX + 4, enteringPipe.y + 2, enteringPipe.w - 8, 2);
+  }
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.life / 0.55, 0, 1);
     ctx.fillStyle = p.color;
@@ -936,7 +1203,7 @@ function draw() {
 function frame(now) {
   const dt = Math.min((now - lastTime) / 1000 || 0, 0.033);
   lastTime = now;
-  if (gameState === 'playing') update(dt);
+  if (gameState === 'playing' || gameState === 'entering') update(dt);
   else elapsed += dt * 0.35;
   cameraShake *= Math.pow(0.01, dt);
   draw();
