@@ -17,6 +17,7 @@ const GROUND_Y = 500;
 const GOAL_X = 2070;
 const CHECKPOINT_X = 1210;
 const TARGET_COINS = 12;
+const ENEMY_SQUISH_DURATION = 0.46;
 const PIPES = [
   { x: 315, w: 58, h: 74 },
   { x: 920, w: 64, h: 104 },
@@ -152,7 +153,6 @@ function movePlayer(dt) {
   if (direction) {
     player.vx += direction * 1500 * dt;
     player.facing = direction;
-    player.walk += dt * Math.abs(player.vx) * 0.045;
   } else {
     player.vx *= Math.pow(0.0008, dt);
   }
@@ -209,6 +209,9 @@ function movePlayer(dt) {
     }
   }
   if (!wasGrounded && player.grounded) burst(player.x + player.w / 2, player.y + player.h, '#fff4d2', 4);
+  if (player.grounded && Math.abs(player.vx) > 18) {
+    player.walk += dt * (5.5 + Math.abs(player.vx) * 0.025);
+  }
   if (player.y > H + 100) loseLife(true);
   if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
 }
@@ -248,7 +251,7 @@ function update(dt) {
       const stomp = player.vy > 80 && player.y + player.h - enemy.y < 20;
       if (stomp) {
         enemy.alive = false;
-        enemy.squishTimer = 0.38;
+        enemy.squishTimer = ENEMY_SQUISH_DURATION;
         player.vy = -360;
         cameraShake = Math.max(cameraShake, 3);
         burst(enemy.x + enemy.w / 2, enemy.y, '#c58a53', 10);
@@ -611,11 +614,12 @@ function drawCoins() {
 function drawEnemy(enemy) {
   if (!enemy.alive && enemy.squishTimer <= 0) return;
   const x = enemy.x - cameraX;
-  const squishProgress = enemy.alive ? 0 : 1 - enemy.squishTimer / 0.38;
-  const squeeze = clamp(squishProgress / 0.18, 0, 1);
-  const scaleY = 1 - squeeze * 0.8;
-  const scaleX = 1 + squeeze * 0.45;
-  const fade = enemy.alive ? 1 : clamp(enemy.squishTimer / 0.08, 0, 1);
+  const squishProgress = enemy.alive ? 0 : 1 - enemy.squishTimer / ENEMY_SQUISH_DURATION;
+  const squashIn = clamp(squishProgress / 0.16, 0, 1);
+  const squeeze = 1 - Math.pow(1 - squashIn, 3);
+  const scaleY = 1 - squeeze * 0.68;
+  const scaleX = 1 + squeeze * 0.38;
+  const fade = enemy.alive ? 1 : clamp(enemy.squishTimer / (ENEMY_SQUISH_DURATION * 0.42), 0, 1);
   const bounce = enemy.alive ? Math.sin(elapsed * 8 + enemy.x * 0.2) * 1.5 : 0;
   const anchorY = enemy.y + enemy.h;
 
@@ -652,15 +656,33 @@ function drawEnemy(enemy) {
   ctx.ellipse(x + 12, enemy.y + 6 + bounce, 5, 2, -0.25, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = '#fff7df';
-  ctx.fillRect(x + 9, enemy.y + 12 + bounce, 6, 8);
-  ctx.fillRect(x + 21, enemy.y + 12 + bounce, 6, 8);
-  ctx.fillStyle = '#30241d';
-  ctx.fillRect(x + 12, enemy.y + 15 + bounce, 3, 4);
-  ctx.fillRect(x + 22, enemy.y + 15 + bounce, 3, 4);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 12, enemy.y + 15 + bounce, 1, 1);
-  ctx.fillRect(x + 22, enemy.y + 15 + bounce, 1, 1);
+  if (enemy.alive) {
+    ctx.fillStyle = '#fff7df';
+    ctx.fillRect(x + 9, enemy.y + 12 + bounce, 6, 8);
+    ctx.fillRect(x + 21, enemy.y + 12 + bounce, 6, 8);
+    ctx.fillStyle = '#30241d';
+    ctx.fillRect(x + 12, enemy.y + 15 + bounce, 3, 4);
+    ctx.fillRect(x + 22, enemy.y + 15 + bounce, 3, 4);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 12, enemy.y + 15 + bounce, 1, 1);
+    ctx.fillRect(x + 22, enemy.y + 15 + bounce, 1, 1);
+  } else {
+    ctx.strokeStyle = '#4b3023';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 10, enemy.y + 17 + bounce);
+    ctx.lineTo(x + 15, enemy.y + 16 + bounce);
+    ctx.moveTo(x + 21, enemy.y + 16 + bounce);
+    ctx.lineTo(x + 26, enemy.y + 17 + bounce);
+    ctx.stroke();
+    ctx.strokeStyle = '#704322';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 15, enemy.y + 22 + bounce);
+    ctx.quadraticCurveTo(x + 18, enemy.y + 24 + bounce, x + 21, enemy.y + 22 + bounce);
+    ctx.stroke();
+  }
 
   roundedGradientRect(x + 3, enemy.y + 24 + bounce, 12, 5, 2, '#73513a', '#35251e');
   roundedGradientRect(x + 21, enemy.y + 24 + bounce, 12, 5, 2, '#73513a', '#35251e');
@@ -675,11 +697,11 @@ function drawPlayer() {
   const y = Math.round(player.y);
   const speed = Math.abs(player.vx);
   const moving = player.grounded && speed > 18;
-  const runAmount = moving ? clamp(speed / 170, 0, 1) : 0;
+  const runAmount = moving ? clamp(speed / 150, 0, 1) : 0;
   const phase = player.walk;
   const stride = moving ? Math.sin(phase) : 0;
-  const bob = moving ? Math.abs(Math.sin(phase * 2)) * 1.6 * runAmount : 0;
-  const lean = moving ? clamp(player.vx / 285, -1, 1) * 0.1 : 0;
+  const bob = moving ? Math.abs(Math.sin(phase)) * 1.8 * runAmount : 0;
+  const lean = moving ? clamp(player.vx / 285, -1, 1) * 0.12 : 0;
   const airborne = !player.grounded;
   const shadowY = Math.max(0, GROUND_Y - (y + player.h));
 
@@ -691,10 +713,11 @@ function drawPlayer() {
   ctx.save();
   ctx.translate(x + player.w / 2, y + player.h / 2 + bob);
   ctx.scale(player.facing, 1);
+  ctx.scale(1, 1 + (moving ? Math.sin(phase * 2) * 0.025 * runAmount : 0));
   ctx.rotate(airborne ? (player.vy < 0 ? -0.08 : 0.07) : -lean);
 
-  // Arms counter-swing against the legs to make the run cycle read clearly in profile.
-  const armSwing = moving ? stride * 0.62 : airborne ? -0.4 : 0.08;
+  // Arms counter-swing against the legs to make each stride feel propulsive.
+  const armSwing = moving ? stride * 0.88 * runAmount : airborne ? -0.4 : 0.08;
   const drawLimb = (px, py, angle, length, width, top, bottom) => {
     ctx.save();
     ctx.translate(px, py);
@@ -703,12 +726,17 @@ function drawPlayer() {
     ctx.restore();
   };
 
-  // Far leg and shoe.
-  drawLimb(-3, 12, airborne ? 0.65 : -stride * 0.48, 10, 5, '#3983dd', '#164c9d');
-  drawLimb(-3 + Math.sin(phase + Math.PI) * 3 * runAmount, 19, airborne ? 0.35 : -stride * 0.75, 5, 7, '#c57545', '#63351f');
-  // Near leg moves opposite the far leg and leads with a chunky, readable boot.
-  drawLimb(4, 11, airborne ? -0.5 : stride * 0.48, 11, 6, '#55a5ff', '#1553b5');
-  drawLimb(4 + Math.sin(phase) * 4 * runAmount + 2, 18, airborne ? -0.25 : stride * 0.75, 5, 8, '#b9683d', '#48251d');
+  // Legs drive in opposite arcs, with each boot lifting clear of the ground.
+  const farLegSwing = airborne ? 0.65 : -stride * 0.68 * runAmount;
+  const nearLegSwing = airborne ? -0.5 : stride * 0.68 * runAmount;
+  const farFootLift = moving ? Math.max(0, Math.sin(phase + Math.PI)) * 2.8 * runAmount : 0;
+  const nearFootLift = moving ? Math.max(0, Math.sin(phase)) * 2.8 * runAmount : 0;
+  const farLegX = -3 - stride * 2.2 * runAmount;
+  const nearLegX = 4 + stride * 2.2 * runAmount;
+  drawLimb(farLegX, 12, farLegSwing, 10, 5, '#3983dd', '#164c9d');
+  drawLimb(farLegX + Math.sin(phase + Math.PI) * 3.5 * runAmount, 19 - farFootLift, airborne ? 0.35 : farLegSwing * 1.15, 5, 7, '#c57545', '#63351f');
+  drawLimb(nearLegX, 11, nearLegSwing, 11, 6, '#55a5ff', '#1553b5');
+  drawLimb(nearLegX + Math.sin(phase) * 3.5 * runAmount + 2, 18 - nearFootLift, airborne ? -0.25 : nearLegSwing * 1.15, 5, 8, '#b9683d', '#48251d');
 
   // Back arm, torso, and the forward arm are separate layers for a little depth.
   drawLimb(-7, -4, armSwing, 12, 5, '#f2bd91', '#bd7958');
