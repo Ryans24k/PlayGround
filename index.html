@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#11151a">
+<title>Hollowbound — A tiny haunted quest</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap');
+:root{color-scheme:dark;--ink:#d8dacd;--muted:#8d978b;--mint:#9ae3bd;--gold:#e4bd72;--panel:#171d20}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#101518;color:var(--ink);font-family:'DM Mono',monospace}body{min-height:100svh;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#27312c 0,#171d20 46%,#101518 100%)}
+.shell{width:min(100vw,1050px);padding:20px 24px 18px}.mast{display:flex;align-items:center;justify-content:space-between;margin:0 auto 12px;max-width:960px}.brand{display:flex;align-items:center;gap:12px}.brand-mark{width:30px;height:30px;background:#a5dbb9;display:grid;place-items:center;color:#17221e;font-size:17px;box-shadow:3px 3px #344c40}.brand-name{font-family:'Press Start 2P',monospace;font-size:11px;letter-spacing:.03em;color:#e4e6d9}.edition{font-size:10px;color:#78837b;letter-spacing:.17em;text-transform:uppercase}.game-frame{position:relative;max-width:960px;margin:auto;border:1px solid #57615a;background:#090e10;padding:8px;box-shadow:0 20px 70px #0009,0 0 0 4px #202928,0 0 0 5px #47514a}.screen{position:relative;width:100%;aspect-ratio:3/2;overflow:hidden;background:#151c1c}canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none}.scanlines{position:absolute;inset:0;pointer-events:none;opacity:.08;background:repeating-linear-gradient(0deg,transparent 0 3px,#000 4px)}.caption{max-width:960px;margin:17px auto 0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#9da69b}.caption span{display:flex;gap:7px;align-items:center}.key{border:1px solid #46514a;border-bottom-width:2px;background:#1a2222;padding:4px 7px;color:#d4dfd1;font-size:10px;border-radius:3px}.credit{color:#69766f}.touch-ui{display:none;position:absolute;inset:auto 0 12px;justify-content:space-between;align-items:end;padding:0 15px;pointer-events:none}.pad{display:grid;grid-template-columns:42px 42px 42px;grid-template-rows:42px 42px 42px;gap:3px;pointer-events:auto}.touch-btn{border:1px solid #c6d9bd66;border-radius:8px;background:#19251fc9;color:#e7f1dc;font:16px 'DM Mono';touch-action:none;user-select:none;box-shadow:0 2px #0007}.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}.action{width:60px;height:60px;border-radius:50%;font-size:12px;color:#fee2ae;background:#563a33dd;border-color:#e3a06a88;pointer-events:auto}.touch-btn:active,.touch-btn.pressed{background:#66816c;color:white}.action:active,.action.pressed{background:#986045}
+@media(max-width:700px){body{display:block;overflow:auto;min-height:100svh}.shell{width:100%;padding:12px 10px 12px}.mast{margin-bottom:10px}.edition{font-size:8px}.game-frame{padding:4px;border-width:1px;box-shadow:0 8px 26px #0008,0 0 0 2px #202928}.caption{font-size:9px;margin:12px 3px;gap:8px;flex-wrap:wrap}.caption .desktop-help{display:none}.touch-ui{display:flex}.screen{aspect-ratio:3/2}}
+@media(max-height:520px) and (min-width:701px){.shell{width:min(90vw,850px);padding:8px}.mast{margin-bottom:6px}.caption{margin-top:8px}.game-frame{padding:5px}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="mast"><div class="brand"><div class="brand-mark">✦</div><div class="brand-name">HOLLOWBOUND</div></div><div class="edition">A little graveyard adventure · 01</div></header>
+  <section class="game-frame" aria-label="Hollowbound game">
+    <div class="screen"><canvas id="game" width="480" height="320" aria-label="Top-down pixel art game"></canvas><div class="scanlines"></div>
+      <div class="touch-ui" id="touchUi"><div class="pad"><button class="touch-btn up" data-key="ArrowUp" aria-label="Move up">▲</button><button class="touch-btn left" data-key="ArrowLeft" aria-label="Move left">◀</button><button class="touch-btn down" data-key="ArrowDown" aria-label="Move down">▼</button><button class="touch-btn right" data-key="ArrowRight" aria-label="Move right">▶</button></div><button class="touch-btn action" data-key="Space" aria-label="Swing sword">SWING</button></div>
+    </div>
+  </section>
+  <footer class="caption"><span class="desktop-help"><kbd class="key">WASD</kbd><kbd class="key">↑↓←→</kbd> move <kbd class="key">SPACE</kbd> swing <kbd class="key">ENTER</kbd> begin</span><span class="credit">✦ &nbsp;Find what was lost. Leave the dark a little lighter.</span></footer>
+</main>
+<script>
+(()=>{
+'use strict';
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+const W=480,H=320,HUD=40,TILE=16,MW=60,MH=38,WW=MW*TILE,WH=MH*TILE;
+const keys=new Set();let mode='title',tick=0,last=0,toast='',toastTime=0,attack=0,shake=0;
+const map=Array.from({length:MH},()=>Array(MW).fill(0));
+// 0 grass, 1 wall, 2 path, 3 grave, 4 water
+for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(x===0||y===0||x===MW-1||y===MH-1)map[y][x]=1;
+// Old stone walls divide the grounds into four overgrown gardens, with broken gates.
+for(let y=1;y<MH-1;y++){if(y<16||y>21)map[y][20]=1;if(y<16||y>21)map[y][40]=1;}
+for(let x=1;x<MW-1;x++){if(x<27||x>32)map[19][x]=1;}
+// a few worn paths
+for(let x=3;x<58;x++)map[18][x]=2;for(let y=3;y<35;y++)map[y][29]=2;
+for(let y=23;y<34;y++)for(let x=5;x<18;x++)if((x+y)%5===0)map[y][x]=2;
+// Decorative grave markers, carefully clear around landmarks.
+const graveSpots=[[7,7],[12,10],[16,5],[6,14],[27,6],[34,10],[37,5],[27,13],[46,7],[52,12],[44,15],[54,5],[7,27],[13,32],[17,25],[6,34],[26,27],[35,25],[37,33],[46,27],[53,32],[45,35]];
+for(const [x,y] of graveSpots)map[y][x]=3;
+const player={x:8*TILE,y:29*TILE,hp:5,max:5,dir:'down',speed:1.55,ifr:0,parts:0};
+const relics=[{x:49*TILE,y:8*TILE,name:'RIBCAGE',icon:'rib',got:false},{x:10*TILE,y:8*TILE,name:'LEFT ARM',icon:'arm',got:false},{x:49*TILE,y:29*TILE,name:'RIGHT ARM',icon:'arm',got:false},{x:30*TILE,y:29*TILE,name:'LEGS',icon:'leg',got:false}];
+const altar={x:30*TILE,y:8*TILE};
+const enemies=[
+ {x:14*TILE,y:27*TILE,type:'wisp',hp:2,phase:0,alive:true},{x:31*TILE,y:12*TILE,type:'bat',hp:1,phase:1,alive:true},
+ {x:46*TILE,y:13*TILE,type:'wisp',hp:2,phase:2,alive:true},{x:51*TILE,y:31*TILE,type:'wisp',hp:2,phase:3,alive:true},
+ {x:32*TILE,y:31*TILE,type:'bat',hp:1,phase:2,alive:true},{x:12*TILE,y:13*TILE,type:'bat',hp:1,phase:0,alive:true}
+];
+const decor=[];let seed=2187;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+for(let i=0;i<320;i++){let x=2+Math.floor(rand()*(MW-4)),y=2+Math.floor(rand()*(MH-4));if(map[y][x]===0)decor.push({x:x*TILE+Math.floor(rand()*14),y:y*TILE+Math.floor(rand()*14),kind:rand()});}
+const particles=[];
+function passable(x,y){let tx=Math.floor(x/TILE),ty=Math.floor(y/TILE);return tx>=0&&ty>=0&&tx<MW&&ty<MH&&map[ty][tx]!==1&&map[ty][tx]!==4&&map[ty][tx]!==3;}
+function moveEntity(ent,dx,dy){if(passable(ent.x+dx-4,ent.y-5)&&passable(ent.x+dx+4,ent.y-5)&&passable(ent.x+dx-4,ent.y+3)&&passable(ent.x+dx+4,ent.y+3))ent.x+=dx;if(passable(ent.x-4,ent.y+dy-5)&&passable(ent.x+4,ent.y+dy-5)&&passable(ent.x-4,ent.y+dy+3)&&passable(ent.x+4,ent.y+dy+3))ent.y+=dy;}
+function start(){mode='play';player.x=8*TILE;player.y=29*TILE;player.hp=5;player.parts=0;player.ifr=0;relics.forEach(r=>r.got=false);enemies.forEach(e=>{e.alive=true;e.hp=e.type==='bat'?1:2});toast='THE CEMETERY KEEPS WHAT IT TAKES';toastTime=150;}
+function reset(){start()}
+window.addEventListener('keydown',e=>{let k=e.code==='Space'?'Space':e.key.startsWith('Arrow')?e.key:e.key.toLowerCase();if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(k))e.preventDefault();keys.add(k);if(mode!=='play'&&(k==='Enter'||k==='Space'))start();if(mode==='dead'&&k==='r')reset();if(mode==='play'&&k==='Space'&&!e.repeat)swing();});
+window.addEventListener('keyup',e=>{let k=e.code==='Space'?'Space':e.key.startsWith('Arrow')?e.key:e.key.toLowerCase();keys.delete(k)});
+for(const b of document.querySelectorAll('.touch-btn')){const k=b.dataset.key;const down=e=>{e.preventDefault();keys.add(k);b.classList.add('pressed');if(k==='Space'&&mode==='play')swing();if(mode!=='play')start()};const up=e=>{e.preventDefault();keys.delete(k);b.classList.remove('pressed')};b.addEventListener('pointerdown',down);['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,up));}
+function swing(){if(attack>0)return;attack=15;for(const e of enemies){if(!e.alive)continue;let dx=e.x-player.x,dy=e.y-player.y,dist=Math.hypot(dx,dy);let fx=player.dir==='right'?1:player.dir==='left'?-1:0,fy=player.dir==='down'?1:player.dir==='up'?-1:0;if(dist<31&&dx*fx+dy*fy>-3){e.hp--;e.x+=fx*9;e.y+=fy*9;burst(e.x,e.y,'#f4dda1',7);if(e.hp<=0){e.alive=false;toast='A LOST SOUL FINDS ITS WAY';toastTime=95;}}}}
+function burst(x,y,color,n){for(let i=0;i<n;i++)particles.push({x,y,vx:(rand()-.5)*2.5,vy:(rand()-.5)*2.5,life:18,color});}
+function update(){tick++;if(attack>0)attack--;if(player.ifr>0)player.ifr--;if(toastTime>0)toastTime--;if(shake>0)shake--;
+if(mode!=='play'){if(keys.has('Enter')||keys.has('Space'))start();return;}
+let dx=0,dy=0;if(keys.has('ArrowLeft')||keys.has('a'))dx--;if(keys.has('ArrowRight')||keys.has('d'))dx++;if(keys.has('ArrowUp')||keys.has('w'))dy--;if(keys.has('ArrowDown')||keys.has('s'))dy++;if(dx||dy){let len=Math.hypot(dx,dy);dx=dx/len*player.speed;dy=dy/len*player.speed;if(Math.abs(dx)>Math.abs(dy))player.dir=dx>0?'right':'left';else player.dir=dy>0?'down':'up';moveEntity(player,dx,dy);}
+// Relics return to their rightful place with a little ghostly fanfare.
+for(const r of relics)if(!r.got&&Math.hypot(player.x-r.x,player.y-r.y)<14){r.got=true;player.parts++;toast=`FOUND: ${r.name}`;toastTime=115;burst(r.x,r.y,'#f6d78e',16);}
+for(const e of enemies){if(!e.alive)continue;e.phase+=.05;let dx=player.x-e.x,dy=player.y-e.y,d=Math.hypot(dx,dy);if(d<115&&d>8){moveEntity(e,dx/d*(e.type==='bat'?.72:.48),dy/d*(e.type==='bat'?.72:.48));}if(d<11&&player.ifr===0){player.hp--;player.ifr=75;shake=8;burst(player.x,player.y,'#ff7670',10);if(player.hp<=0)mode='dead';}}
+if(player.parts===relics.length&&Math.hypot(player.x-altar.x,player.y-altar.y)<22){mode='won';burst(altar.x,altar.y,'#f6d78e',35);}
+for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.x+=p.vx;p.y+=p.vy;p.life--;if(p.life<=0)particles.splice(i,1);}
+}
+function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),w,h)}
+function drawTile(x,y,tx,ty){let t=map[ty][tx],v=(tx*7+ty*13)%5;rect(x,y,16,16,t===1?'#384742':t===2?'#625847':'#293b35');
+if(t===0){rect(x+2+(v%3)*4,y+3+(v%2)*7,1,2,'#405349');if(v===0)rect(x+12,y+11,2,1,'#344a3d');if(v===3)rect(x+5,y+13,1,1,'#61704b');}
+if(t===2){rect(x,y+3,16,1,'#766b55');rect(x+4,y+10,1,1,'#4e4b40');}
+if(t===1){rect(x,y,16,3,'#536259');rect(x+1,y+4,6,4,'#43514a');rect(x+8,y+4,7,4,'#4a5950');rect(x+4,y+10,7,5,'#394741');rect(x+13,y+10,3,5,'#46554b');rect(x+2,y+3,1,1,'#8a8b70');}
+if(t===3){rect(x+7,y+6,3,8,'#82917b');rect(x+4,y+3,9,5,'#a9b39a');rect(x+6,y+4,5,3,'#7c8b79');rect(x+8,y+9,1,3,'#52695b');rect(x+3,y+14,11,1,'#1c2a25');}
+if(t===4){rect(x,y,16,16,'#273b43');rect(x+2,y+4,4,1,'#42606a');rect(x+9,y+10,5,1,'#385863');}}
+function drawWorld(){let camX=Math.max(0,Math.min(WW-W,player.x-W/2)),camY=Math.max(0,Math.min(WH-(H-HUD),player.y-(H-HUD)/2));ctx.save();ctx.beginPath();ctx.rect(0,HUD,W,H-HUD);ctx.clip();ctx.translate(-Math.floor(camX),HUD-Math.floor(camY));
+let x0=Math.max(0,Math.floor(camX/TILE)),x1=Math.min(MW,Math.ceil((camX+W)/TILE)),y0=Math.max(0,Math.floor(camY/TILE)),y1=Math.min(MH,Math.ceil((camY+H-HUD)/TILE));for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)drawTile(x*TILE,y*TILE,x,y);
+// Moonlit weeds and fireflies.
+for(const d of decor){if(d.x>=camX-12&&d.x<camX+W+12&&d.y>=camY-12&&d.y<camY+H-HUD+12){rect(d.x,d.y,1,2,d.kind>.55?'#65734c':'#52614a');if(d.kind>.84)rect(d.x+2,d.y-2,1,1,'#c5c58a');}}
+// The return altar glows only when all four pieces are found.
+rect(altar.x-12,altar.y-10,24,20,'#25352f');rect(altar.x-9,altar.y-8,18,16,'#77806c');rect(altar.x-6,altar.y-5,12,10,player.parts===4?'#e1bd73':'#3e4d44');rect(altar.x-2,altar.y-3,4,6,player.parts===4?'#fff0bd':'#1c2924');if(player.parts===4){rect(altar.x-1,altar.y-16+Math.sin(tick/8)*2,2,3,'#fff0b5');}
+for(const r of relics)if(!r.got){let bob=Math.sin(tick/9+r.x)*2;rect(r.x-5,r.y-1+bob,10,9,'#171f1b');rect(r.x-3,r.y-6+bob,6,9,'#e1d5b3');rect(r.x-2,r.y-4+bob,2,2,'#75857a');rect(r.x+1,r.y-4+bob,2,2,'#75857a');rect(r.x-1,r.y+1+bob,2,5,'#acaa92');rect(r.x-7,r.y-10+bob,14,1,'#e8d39b');}
+for(const e of enemies)if(e.alive){let bob=Math.sin(tick/6+e.phase)*2;if(e.type==='wisp'){rect(e.x-5,e.y-5+bob,10,11,'#385b63');rect(e.x-3,e.y-7+bob,6,10,'#7ac1ae');rect(e.x-2,e.y-3+bob,2,2,'#e9efbd');rect(e.x+2,e.y-3+bob,2,2,'#e9efbd');rect(e.x-2,e.y+5+bob,2,3,'#4e8c82');}else{rect(e.x-7,e.y-2+bob,14,6,'#58456d');rect(e.x-4,e.y-5+bob,8,7,'#9886b0');rect(e.x-3,e.y-2+bob,2,2,'#ffb8a2');rect(e.x+2,e.y-2+bob,2,2,'#ffb8a2');rect(e.x-9,e.y-4+bob,3,4,'#81709b');rect(e.x+6,e.y-4+bob,3,4,'#81709b');}}
+// Player shadow and tiny animated skeleton hero.
+if(!(player.ifr>0&&tick%8<4)){let x=player.x,y=player.y;rect(x-6,y+2,12,3,'#17221d');let leg=(tick%24<12)?1:0;rect(x-4,y-8,8,7,'#b8c5a6');rect(x-3,y-11,6,5,'#dfdfc4');rect(x-2,y-14,4,4,'#f0ebd4');rect(x-2,y-13,1,1,'#394840');rect(x+1,y-13,1,1,'#394840');rect(x-3,y-15,2,1,'#e9e3ce');rect(x+1,y-15,2,1,'#e9e3ce');rect(x-4,y-2,3,5+leg,'#d7dbc0');rect(x+1,y-2,3,5+(1-leg),'#d7dbc0');rect(x-7,y-7,3,2,'#d7dbc0');rect(x+4,y-7,3,2,'#d7dbc0');rect(x-3,y-6,6,1,'#89998a');rect(x-2,y-4,4,1,'#89998a');
+if(attack>0){let ax=x,ay=y;if(player.dir==='up')ay-=17;if(player.dir==='down')ay+=9;if(player.dir==='left')ax-=15;if(player.dir==='right')ax+=15;rect(ax-5,ay-1,10,2,'#fff1c0');rect(ax-2,ay-4,4,8,'#d3d8c0');}}
+for(const p of particles)rect(p.x,p.y,2,2,p.color);
+ctx.restore();return {camX,camY};}
+function drawHud(){rect(0,0,W,HUD,'#151c1d');rect(0,HUD-1,W,1,'#637164');rect(10,9,20,20,'#33433b');rect(13,11,14,14,'#bfc9ad');rect(16,14,3,3,'#3b4e43');rect(21,14,3,3,'#3b4e43');rect(18,19,3,2,'#63766a');ctx.fillStyle='#e2e4d5';ctx.font='9px "Press Start 2P"';ctx.fillText('HOLLOWBOUND',39,17);ctx.fillStyle='#829186';ctx.font='8px "DM Mono"';ctx.fillText('THE SUNKEN CHURCHYARD',39,29);
+ctx.fillStyle='#9ca99b';ctx.font='8px "DM Mono"';ctx.fillText('SOUL',250,13);for(let i=0;i<player.max;i++){let x=250+i*17;rect(x,19,13,10,'#303a34');if(i<player.hp){rect(x+2,21,9,6,player.ifr>0?'#e98976':'#df7770');rect(x+4,20,5,2,'#f2aaa0');}}
+ctx.fillStyle='#a7b49f';ctx.fillText('BODY',365,13);for(let i=0;i<4;i++){let x=366+i*22;rect(x,20,15,12,'#27332d');if(i<player.parts){rect(x+6,21,3,8,'#e5d7b6');rect(x+3,23,9,2,'#c9c4a8');}}
+}
+function overlay(title,lines,button){rect(0,0,W,H,'#080d0dd9');rect(35,25,410,270,'#19211f');rect(38,28,404,264,'#222c28');rect(42,32,396,256,'#151d1c');rect(42,32,396,1,'#728174');
+// little moon and silhouettes
+rect(355,53,33,33,'#d5d7b2');rect(366,48,33,33,'#151d1c');rect(350,92,5,52,'#34473e');rect(341,98,18,5,'#34473e');rect(390,104,4,40,'#34473e');rect(381,108,20,4,'#34473e');
+ctx.textAlign='center';ctx.fillStyle='#9de0b5';ctx.font='10px "Press Start 2P"';ctx.fillText('A HAUNTED LITTLE QUEST',240,69);ctx.fillStyle='#f0ead4';ctx.font='27px "Press Start 2P"';ctx.fillText(title,240,111);ctx.fillStyle='#d5d5c2';ctx.font='10px "DM Mono"';lines.forEach((s,i)=>ctx.fillText(s,240,145+i*17));rect(165,218,150,29,'#91c7a2');rect(168,221,144,23,'#b1e0b7');ctx.fillStyle='#17211b';ctx.font='9px "Press Start 2P"';ctx.fillText(button,240,237);ctx.fillStyle='#79897e';ctx.font='8px "DM Mono"';ctx.fillText('WASD / ARROWS TO WANDER     SPACE TO SWING',240,270);ctx.textAlign='left';}
+function draw(){ctx.clearRect(0,0,W,H);if(shake){ctx.save();ctx.translate((rand()-.5)*shake,(rand()-.5)*shake);}drawWorld();drawHud();if(mode==='title')overlay('HOLLOWBOUND',['A skeleton woke beneath the yew tree.','His bones are scattered. The night is not kind.','Find four lost pieces, then return to the altar.'],'PRESS ENTER');if(mode==='won')overlay('WHOLE AGAIN',['Ribs, arms, legs — all back where they belong.','The old church bell rings one last time.','You put the lost souls to rest.'],'PLAY AGAIN');if(mode==='dead')overlay('THE END?',['The dark has claimed this little wanderer.','The pieces are still out there, somewhere.'],'TRY AGAIN');if(toastTime>0&&mode==='play'){rect(90,47,300,22,'#111a17dd');rect(91,47,1,22,'#d6bd7e');ctx.fillStyle='#e5d9bb';ctx.font='8px "Press Start 2P"';ctx.textAlign='center';ctx.fillText(toast,240,61);ctx.textAlign='left';}if(shake)ctx.restore();}
+function loop(t){let dt=Math.min(40,t-last);last=t;if(dt>0){let steps=Math.max(1,Math.floor(dt/16));for(let i=0;i<steps;i++)update();}draw();requestAnimationFrame(loop);}
+// pause keyboard movement on tab-out
+window.addEventListener('blur',()=>keys.clear());requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
