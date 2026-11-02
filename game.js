@@ -60,10 +60,10 @@ function buildLevel() {
   ];
   rows.forEach(([x, y]) => coins.push({ x, y, taken: false, phase: Math.random() * Math.PI * 2 }));
   enemies = [
-    { x: 340, y: GROUND_Y - 28, w: 34, h: 28, min: 315, max: 380, dir: 1, speed: 50, alive: true },
-    { x: 740, y: GROUND_Y - 28, w: 34, h: 28, min: 655, max: 805, dir: -1, speed: 56, alive: true },
-    { x: 1260, y: GROUND_Y - 28, w: 34, h: 28, min: 1200, max: 1325, dir: 1, speed: 52, alive: true },
-    { x: 1810, y: GROUND_Y - 28, w: 34, h: 28, min: 1730, max: 1900, dir: -1, speed: 62, alive: true },
+    { x: 340, y: GROUND_Y - 28, w: 34, h: 28, min: 315, max: 380, dir: 1, speed: 50, alive: true, squishTimer: 0 },
+    { x: 740, y: GROUND_Y - 28, w: 34, h: 28, min: 655, max: 805, dir: -1, speed: 56, alive: true, squishTimer: 0 },
+    { x: 1260, y: GROUND_Y - 28, w: 34, h: 28, min: 1200, max: 1325, dir: 1, speed: 52, alive: true, squishTimer: 0 },
+    { x: 1810, y: GROUND_Y - 28, w: 34, h: 28, min: 1730, max: 1900, dir: -1, speed: 62, alive: true, squishTimer: 0 },
   ];
 }
 
@@ -212,13 +212,17 @@ function update(dt) {
   }
 
   for (const enemy of enemies) {
-    if (!enemy.alive) continue;
+    if (!enemy.alive) {
+      enemy.squishTimer = Math.max(0, enemy.squishTimer - dt);
+      continue;
+    }
     enemy.x += enemy.dir * enemy.speed * dt;
     if (enemy.x < enemy.min || enemy.x + enemy.w > enemy.max) enemy.dir *= -1;
     if (overlap(player, enemy)) {
       const stomp = player.vy > 80 && player.y + player.h - enemy.y < 20;
       if (stomp) {
         enemy.alive = false;
+        enemy.squishTimer = 0.38;
         player.vy = -360;
         cameraShake = Math.max(cameraShake, 3);
         burst(enemy.x + enemy.w / 2, enemy.y, '#c58a53', 10);
@@ -476,9 +480,21 @@ function drawCoins() {
 }
 
 function drawEnemy(enemy) {
-  if (!enemy.alive) return;
+  if (!enemy.alive && enemy.squishTimer <= 0) return;
   const x = enemy.x - cameraX;
-  const bounce = Math.sin(elapsed * 8 + enemy.x * 0.2) * 1.5;
+  const squishProgress = enemy.alive ? 0 : 1 - enemy.squishTimer / 0.38;
+  const squeeze = clamp(squishProgress / 0.18, 0, 1);
+  const scaleY = 1 - squeeze * 0.8;
+  const scaleX = 1 + squeeze * 0.45;
+  const fade = enemy.alive ? 1 : clamp(enemy.squishTimer / 0.08, 0, 1);
+  const bounce = enemy.alive ? Math.sin(elapsed * 8 + enemy.x * 0.2) * 1.5 : 0;
+  const anchorY = enemy.y + enemy.h;
+
+  ctx.save();
+  ctx.globalAlpha *= fade;
+  ctx.translate(x + enemy.w / 2, anchorY);
+  ctx.scale(scaleX, scaleY);
+  ctx.translate(-(x + enemy.w / 2), -anchorY);
 
   ctx.fillStyle = 'rgba(58,38,28,0.2)';
   ctx.beginPath();
@@ -519,65 +535,134 @@ function drawEnemy(enemy) {
 
   roundedGradientRect(x + 3, enemy.y + 24 + bounce, 12, 5, 2, '#73513a', '#35251e');
   roundedGradientRect(x + 21, enemy.y + 24 + bounce, 12, 5, 2, '#73513a', '#35251e');
+  ctx.restore();
 }
 
 function drawPlayer() {
   if (!player) return;
   if (player.invulnerable > 0 && Math.floor(elapsed * 15) % 2) return;
+
   const x = Math.round(player.x - cameraX);
   const y = Math.round(player.y);
-  const step = player.grounded ? Math.sin(player.walk) * 2 : 0;
-  const squash = player.grounded ? 1 + Math.abs(player.vx) * 0.0006 : 1.06;
-  const runTilt = player.grounded ? Math.sin(player.walk * 1.4) * 3 : 0;
-  const bob = player.grounded ? Math.sin(elapsed * 10) * 1.5 : 0;
+  const speed = Math.abs(player.vx);
+  const moving = player.grounded && speed > 18;
+  const runAmount = moving ? clamp(speed / 170, 0, 1) : 0;
+  const phase = player.walk;
+  const stride = moving ? Math.sin(phase) : 0;
+  const bob = moving ? Math.abs(Math.sin(phase * 2)) * 1.6 * runAmount : 0;
+  const lean = moving ? clamp(player.vx / 285, -1, 1) * 0.1 : 0;
+  const airborne = !player.grounded;
+  const shadowY = Math.max(0, GROUND_Y - (y + player.h));
 
-  ctx.fillStyle = `rgba(46,37,32,${Math.max(0.08, 0.2 - Math.max(0, GROUND_Y - (y + player.h)) * 0.0007)})`;
+  ctx.fillStyle = `rgba(46,37,32,${Math.max(0.08, 0.2 - shadowY * 0.0007)})`;
   ctx.beginPath();
-  ctx.ellipse(x + player.w / 2, y + player.h + 2, 13, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + player.w / 2, y + player.h + 2, Math.max(7, 13 - shadowY * 0.06), 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
   ctx.translate(x + player.w / 2, y + player.h / 2 + bob);
   ctx.scale(player.facing, 1);
-  ctx.translate(-(x + player.w / 2), -(y + player.h / 2 + bob));
+  ctx.rotate(airborne ? (player.vy < 0 ? -0.08 : 0.07) : -lean);
 
-  const footY = y + 38 + step;
-  roundedGradientRect(x + 2, footY, 12, 8, 3, '#a35b36', '#48251d');
-  roundedGradientRect(x + 17, footY - step * 0.6, 12, 8, 3, '#a35b36', '#48251d');
-  ctx.fillStyle = 'rgba(255,218,165,0.65)';
-  ctx.fillRect(x + 5, footY + 1, 6, 1);
-  ctx.fillRect(x + 20, footY - step * 0.6 + 1, 6, 1);
+  // Arms counter-swing against the legs to make the run cycle read clearly in profile.
+  const armSwing = moving ? stride * 0.62 : airborne ? -0.4 : 0.08;
+  const drawLimb = (px, py, angle, length, width, top, bottom) => {
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(angle);
+    roundedGradientRect(-width / 2, 0, width, length, width / 2, top, bottom);
+    ctx.restore();
+  };
 
-  roundedGradientRect(x + 5, y + 22, 21, 18 * squash, 4, '#55a5ff', '#1553b5');
-  ctx.fillStyle = 'rgba(190,225,255,0.72)';
-  ctx.fillRect(x + 8, y + 24, 3, 10);
-  ctx.fillRect(x + 20, y + 24, 3, 10);
-  ctx.fillStyle = '#f7c744';
-  ctx.fillRect(x + 12, y + 24, 3, 4);
-  ctx.fillRect(x + 17, y + 24, 3, 4);
+  // Far leg and shoe.
+  drawLimb(-3, 12, airborne ? 0.65 : -stride * 0.48, 10, 5, '#3983dd', '#164c9d');
+  drawLimb(-3 + Math.sin(phase + Math.PI) * 3 * runAmount, 19, airborne ? 0.35 : -stride * 0.75, 5, 7, '#c57545', '#63351f');
+  // Near leg moves opposite the far leg and leads with a chunky, readable boot.
+  drawLimb(4, 11, airborne ? -0.5 : stride * 0.48, 11, 6, '#55a5ff', '#1553b5');
+  drawLimb(4 + Math.sin(phase) * 4 * runAmount + 2, 18, airborne ? -0.25 : stride * 0.75, 5, 8, '#b9683d', '#48251d');
 
-  roundedGradientRect(x + 3, y + 17 + runTilt * 0.18, 25, 14, 5, '#ff7860', '#b92d32');
-  roundedGradientRect(x + 7, y + 4, 19, 20, 6, '#ffe2b4', '#e9a978');
-  const cap = ctx.createLinearGradient(0, y + 1, 0, y + 13);
-  cap.addColorStop(0, '#ff7761');
-  cap.addColorStop(0.55, '#f14d43');
-  cap.addColorStop(1, '#b72c35');
-  ctx.fillStyle = cap;
-  ctx.fillRect(x + 4, y + 1, 23, 8);
-  ctx.fillRect(x + 1, y + 8, 29, 5);
-  ctx.fillStyle = 'rgba(255,216,190,0.72)';
-  ctx.fillRect(x + 5, y + 2, 15, 2);
-  ctx.fillStyle = 'rgba(120,31,42,0.42)';
-  ctx.fillRect(x + 3, y + 11, 25, 2);
+  // Back arm, torso, and the forward arm are separate layers for a little depth.
+  drawLimb(-7, -4, armSwing, 12, 5, '#f2bd91', '#bd7958');
+  roundedGradientRect(-9, -4, 17, 19, 5, '#5fb0ff', '#174d9d');
+  ctx.fillStyle = 'rgba(215,237,255,0.58)';
+  ctx.beginPath();
+  ctx.moveTo(-5, -1);
+  ctx.lineTo(-2, -2);
+  ctx.lineTo(-2, 11);
+  ctx.lineTo(-5, 12);
+  ctx.closePath();
+  ctx.fill();
+  roundedGradientRect(0, 8, 7, 7, 2, '#f8cc4f', '#ca7b21');
+  ctx.fillStyle = 'rgba(255,238,172,0.8)';
+  ctx.fillRect(1, 9, 2, 3);
+  drawLimb(6, -3, -armSwing * 0.85, 11, 6, '#ffd2a8', '#c17b58');
 
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 19, y + 12, 5, 6);
+  // Profiled face: a single eye, a small forward nose, and a visible ear.
+  const face = ctx.createLinearGradient(-7, -16, 10, 3);
+  face.addColorStop(0, '#ffe8c2');
+  face.addColorStop(0.68, '#f2bd8c');
+  face.addColorStop(1, '#ce875d');
+  ctx.fillStyle = face;
+  ctx.beginPath();
+  ctx.moveTo(-8, -15);
+  ctx.quadraticCurveTo(-2, -19, 5, -15);
+  ctx.quadraticCurveTo(9, -13, 8, -9);
+  ctx.lineTo(12, -6);
+  ctx.quadraticCurveTo(13, -4, 9, -3);
+  ctx.lineTo(8, 1);
+  ctx.quadraticCurveTo(3, 5, -5, 2);
+  ctx.quadraticCurveTo(-10, -2, -8, -15);
+  ctx.fill();
+
+  ctx.fillStyle = '#d58c60';
+  ctx.beginPath();
+  ctx.ellipse(-5, -5, 2.5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fffdf4';
+  ctx.beginPath();
+  ctx.ellipse(4, -10, 2.3, 3.2, -0.12, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = '#30252a';
-  ctx.fillRect(x + 22, y + 14, 2, 4);
-  ctx.fillStyle = '#a72c2e';
-  ctx.fillRect(x + 14, y + 20, 7, 2);
-  ctx.fillStyle = '#fff2dc';
-  ctx.fillRect(x + 10, y + 5, 9, 2);
+  ctx.beginPath();
+  ctx.ellipse(5.2, -9.5, 1.1, 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillRect(5, -11, 1, 1);
+  ctx.fillStyle = '#8b423b';
+  ctx.beginPath();
+  ctx.moveTo(6, -1);
+  ctx.quadraticCurveTo(8, 0, 10, -1);
+  ctx.strokeStyle = '#8b423b';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // Red cap with a forward brim gives the silhouette an unmistakable direction.
+  const cap = ctx.createLinearGradient(0, -23, 0, -11);
+  cap.addColorStop(0, '#ff8068');
+  cap.addColorStop(0.55, '#f04b43');
+  cap.addColorStop(1, '#a92835');
+  ctx.fillStyle = cap;
+  ctx.beginPath();
+  ctx.moveTo(-10, -16);
+  ctx.quadraticCurveTo(-9, -23, -2, -23);
+  ctx.lineTo(4, -22);
+  ctx.quadraticCurveTo(7, -20, 7, -15);
+  ctx.lineTo(12, -14);
+  ctx.quadraticCurveTo(15, -13, 13, -11);
+  ctx.lineTo(1, -12);
+  ctx.lineTo(-10, -12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,220,194,0.75)';
+  ctx.beginPath();
+  ctx.moveTo(-7, -19);
+  ctx.quadraticCurveTo(-2, -22, 3, -20);
+  ctx.lineTo(3, -18);
+  ctx.lineTo(-7, -17);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(116,28,40,0.5)';
+  ctx.fillRect(-8, -13, 17, 1.5);
 
   ctx.restore();
 }
